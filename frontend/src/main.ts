@@ -1,24 +1,26 @@
-import './style.css'
-import typescriptLogo from './typescript.svg'
-import viteLogo from '/vite.svg'
-import { setupCounter } from './counter.ts'
+interface RobotState {
+  actuator1: number;
+  actuator2: number;
+}
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="${viteLogo}" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://www.typescriptlang.org/" target="_blank">
-      <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
-    </a>
-    <h1>Vite + TypeScript</h1>
-    <div class="card">
-      <button id="counter" type="button"></button>
-    </div>
-    <p class="read-the-docs">
-      Click on the Vite and TypeScript logos to learn more
-    </p>
-  </div>
-`
+const ws = new WebSocket('ws://localhost:3000');
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+ws.onopen = () => console.log('Connected to WebSocket server');
+
+ws.onmessage = (event: MessageEvent) => {
+  try {
+    const data: RobotState = JSON.parse(event.data);
+    console.log('Received:', data);
+    const actuator1 = document.getElementById('actuator1');
+    const actuator2 = document.getElementById('actuator2');
+    if (actuator1 && actuator2) {
+      actuator1.textContent = data.actuator1.toString();
+      actuator2.textContent = data.actuator2.toString();
+    }
+  } catch (error) {
+    console.error('Invalid JSON:', error);
+  }
+};
+
+ws.onerror = (error: Event) => console.error('WebSocket error:', error);
+ws.onclose = () => console.log('WebSocket closed');
