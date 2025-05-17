@@ -20,9 +20,19 @@ public:
         return {{"actuator1", actuator1}, {"actuator2", actuator2}};
     }
 
+    // Set requested actuator positions
+    void setRequestedActuator1(float value) { requestedActuator1 = value; }
+    void setRequestedActuator2(float value) { requestedActuator2 = value; }
+
+    // Get requested positions (for future use)
+    float getRequestedActuator1() const { return requestedActuator1; }
+    float getRequestedActuator2() const { return requestedActuator2; }
+
 private:
     float actuator1;
     float actuator2;
+    float requestedActuator1;
+    float requestedActuator2;
 };
 
 #endif
