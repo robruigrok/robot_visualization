@@ -29,15 +29,31 @@ public:
         server_.set_message_handler([this](connection_hdl hdl, server<asio>::message_ptr msg) {
             try {
                 json data = json::parse(msg->get_payload());
-                if (data.contains("actuator1")) {
-                    float value = data["actuator1"].get<float>();
-                    arm_.setRequestedActuator1(value);
-                    std::cout << "Received actuator1: " << value << std::endl;
-                }
-                if (data.contains("actuator2")) {
-                    float value = data["actuator2"].get<float>();
-                    arm_.setRequestedActuator2(value);
-                    std::cout << "Received actuator2: " << value << std::endl;
+                if (data.is_array()) {
+                    // Handle array of {link_name, value}
+                    for (const auto& movable_link : data) {
+                        if (movable_link.contains("link_name") && movable_link.contains("value")) {
+                            std::string linkName = movable_link["link_name"].get<std::string>();
+                            float value = movable_link["value"].get<float>();
+                            std::cout << "Received " << linkName << ": " << value << " deg/m" << std::endl;
+                            // Find the corresponding link and set the requested value
+                            std::vector<RobotLink>& links = arm_.getLinks();
+                            for (auto& link : links) { // hmmmm this is private. TODO: CHANGE
+                                if (link.getLinkName() == linkName) {
+                                    // a bit ugly, but if the link is a rotation link, convert to radians
+                                    if (link.getLinkType() == RobotLink::LinkType::ROT_X ||
+                                        link.getLinkType() == RobotLink::LinkType::ROT_Y ||
+                                        link.getLinkType() == RobotLink::LinkType::ROT_Z) {
+                                        value = value * M_PI / 180.0f; // convert to radians
+                                    }
+                                    link.setRequestedValue(value);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    std::cerr << "Invalid JSON: Expected array" << std::endl;
                 }
             } catch (const std::exception& e) {
                 std::cerr << "Error parsing JSON: " << e.what() << std::endl;

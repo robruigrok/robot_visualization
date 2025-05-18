@@ -36,6 +36,7 @@ public:
     float getRotationY() const { return rotationY; }
     float getRotationZ() const { return rotationZ; }
     LinkType getLinkType() const { return type; }
+    std::string getLinkName() const { return linkName; }
     float getCurrentValue() const { return currentValue; }
     float getRequestedValue() const { return requestedValue; }
 
@@ -50,8 +51,11 @@ public:
     void moveAroundZAxis() {
         // Simulate movement (to be replaced with interpolation)
         if (type == LinkType::ROT_Z) {
-            currentValue += 0.0174533f; // ~1 deg/sec (1 deg = 0.0174533 rad)
-            if (currentValue > 6.2832f) currentValue -= 6.2832f; // Wrap at 2π
+            // currentValue += 0.0174533f; // ~1 deg/sec (1 deg = 0.0174533 rad)
+            // if (currentValue > 6.2832f) currentValue -= 6.2832f; // Wrap at 2π
+            // rotationZ = currentValue; // Update rotation
+            // instead for now, directly set the value
+            rotationZ = requestedValue; // Update rotation
         }
     }
 
@@ -95,10 +99,11 @@ class RoboticArm {
 public:
     RoboticArm() {
         // Hardcode robot: base (STATIC), arm1 (ROT_Z), arm2 (ROT_Z)
+        // Entities in links: translation x, y z, rotation x, y, z, type, min, max, speed
         links = {
             // Base: 1.5m tall, 0.3m x 0.3m
             RobotLink("base", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f, 
-                      RobotLink::LinkType::STATIC, 0.0f, 0.0f, 0.0f),
+                      RobotLink::LinkType::Z, 0.0f, 0.0f, 0.0f),
             // Arm1: 1m long (X), rotates around Z at base top (0, 0, 1.5)
             RobotLink("arm1", 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
                       RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 1.0f), // ±π, 1 rad/s
@@ -126,19 +131,15 @@ public:
     }
 
     // Set requested actuator positions
-    void setRequestedActuator1(float value) { requestedActuator1 = value; }
-    void setRequestedActuator2(float value) { requestedActuator2 = value; }
+    // void setRequestedActuator(float value) { requestedActuator1 = value; }
 
     // Get requested positions (for future use)
-    float getRequestedActuator1() const { return requestedActuator1; }
-    float getRequestedActuator2() const { return requestedActuator2; }
+
+    std::vector<RobotLink>& getLinks() { return links; }    // TODO: make const, for now like this to set the requested value
 
 private:
     std::vector<RobotLink> links;
-    float actuator1;
-    float actuator2;
-    float requestedActuator1;
-    float requestedActuator2;
+
 };
 
 #endif

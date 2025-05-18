@@ -45,13 +45,13 @@ ws.onmessage = (event: MessageEvent) => {
           stateText = `${link.translation.z.toFixed(1)} m`;
           break;
         case 'ROT_X':
-          stateText = `${link.rotation.x.toFixed(1)} deg`;
+          stateText = `${THREE.MathUtils.radToDeg(link.rotation.x).toFixed(1)} deg`;
           break;
         case 'ROT_Y':
-          stateText = `${link.rotation.y.toFixed(1)} deg`;
+          stateText = `${THREE.MathUtils.radToDeg(link.rotation.y).toFixed(1)} deg`;
           break;
         case 'ROT_Z':
-          stateText = `${link.rotation.z.toFixed(1)} deg`;
+          stateText = `${THREE.MathUtils.radToDeg(link.rotation.z).toFixed(1)} deg`;
           break;
         default:
           stateText = 'Unknown';
@@ -94,7 +94,7 @@ ws.onmessage = (event: MessageEvent) => {
           button.addEventListener('click', () => {
             const value = parseFloat(input.value);
             if (!isNaN(value)) {
-              ws.send(JSON.stringify({ link_name: link.link_name, value: value })); // Keep for compatibility
+              ws.send(JSON.stringify([{ link_name: link.link_name, value: value }])); // Keep for compatibility
               console.log('Sent:', { link_name: link.link_name, value: value });
               // input.value = ''; // Optional: Clear input
             }
@@ -141,9 +141,9 @@ ws.onmessage = (event: MessageEvent) => {
 
       // Apply rotation first (in radians)
       mesh.rotation.set(
-        THREE.MathUtils.degToRad(link.rotation.x),
-        THREE.MathUtils.degToRad(link.rotation.y),
-        THREE.MathUtils.degToRad(link.rotation.z)
+        link.rotation.x,
+        link.rotation.y,
+        link.rotation.z
       );
 
       // Parent to previous mesh (hierarchical)
