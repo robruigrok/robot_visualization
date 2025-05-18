@@ -59,6 +59,39 @@ public:
         }
     }
 
+    void moveToRequestedValue(int updateInterval) {
+        // TODO: check if requested value is within bounds
+        // TODO: make distinction between translation and rotation since rotation can wrap around.
+        // move to requested value, with max speed. Use update interval to calculate speed
+        float delta = requestedValue - currentValue;
+        float max_step = maxSpeed * updateInterval / 1000.0f; // convert ms to seconds
+        // for debuggin, output delta and max_step
+        std::cout << "Delta: " << delta << ", Max Step: " << max_step << std::endl;
+        if (std::abs(delta) > max_step) {
+            if (delta > 0) {
+                currentValue += max_step;
+            } else {
+                currentValue -= max_step;
+            }
+        } else {
+            currentValue = requestedValue; // reached requested value
+        }
+        // write the currentValue to the correct translation/rotation
+        if (type == LinkType::ROT_X) {
+            rotationX = currentValue; // Update rotation    
+        } else if (type == LinkType::ROT_Y) {
+            rotationY = currentValue; // Update rotation
+        } else if (type == LinkType::ROT_Z) {
+            rotationZ = currentValue; // Update rotation
+        } else if (type == LinkType::X) {
+            translationX = currentValue; // Update translation
+        } else if (type == LinkType::Y) {
+            translationY = currentValue; // Update translation
+        } else if (type == LinkType::Z) {
+            translationZ = currentValue; // Update translation
+        }
+    }
+
     // Get JSON state for this link. Only include relevant values
     json getState() const {
         json state;
@@ -103,22 +136,23 @@ public:
         links = {
             // Base: 1.5m tall, 0.3m x 0.3m
             RobotLink("base", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f, 
-                      RobotLink::LinkType::Z, 0.0f, 0.0f, 0.0f),
+                      RobotLink::LinkType::Z, 1.0f, 2.0f, 0.5f),
             // Arm1: 1m long (X), rotates around Z at base top (0, 0, 1.5)
             RobotLink("arm1", 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
-                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 1.0f), // ±π, 1 rad/s
+                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.1f), // ±π, 1 rad/s
             // Arm offset: 0.2m down (Z), static
             RobotLink("arm_offset", 0.0f, 0.0f, -0.2f, 0.0f, 0.0f, 0.0f, 
                       RobotLink::LinkType::STATIC, 0.0f, 0.0f, 0.0f),
             // Arm2: 0.7m long (X), rotates around Z at arm1 end
             RobotLink("arm2", 0.7f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
-                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 1.0f)  // ±π, 1 rad/s
+                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.1f)  // ±π, 1 rad/s
         };
     }
 
     void update() {
         for (auto& link : links) {
-            link.moveAroundZAxis();
+            // link.moveAroundZAxis();
+            link.moveToRequestedValue(getUpdateInterval()); 
         }
     }
 
@@ -137,9 +171,11 @@ public:
 
     std::vector<RobotLink>& getLinks() { return links; }    // TODO: make const, for now like this to set the requested value
 
+    int getUpdateInterval() const { return update_interval_ms; }
+
 private:
     std::vector<RobotLink> links;
-
+    int update_interval_ms = 100;    // 100ms update interval
 };
 
 #endif
