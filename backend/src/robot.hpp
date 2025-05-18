@@ -3,6 +3,8 @@
 
 #include <nlohmann/json.hpp>
 #include <vector>
+#include <string>
+
 
 using json = nlohmann::json;
 
@@ -19,9 +21,9 @@ public:
     };
 
     // Constructor
-    RobotLink(float x, float y, float z, float rx, float ry, float rz, 
+    RobotLink(const std::string& name, float x, float y, float z, float rx, float ry, float rz, 
               LinkType type, float minVal, float maxVal, float maxSpeed)
-        : translationX(x), translationY(y), translationZ(z),
+        : linkName(name), translationX(x), translationY(y), translationZ(z),
           rotationX(rx), rotationY(ry), rotationZ(rz),
           type(type), minValue(minVal), maxValue(maxVal), maxSpeed(maxSpeed),
           currentValue(0.0f), requestedValue(0.0f) {}
@@ -56,12 +58,15 @@ public:
     // Get JSON state for this link. Only include relevant values
     json getState() const {
         json state;
+        state["link_name"] = linkName;
+        state["movable"] = toString(type);
         state["translation"] = {{"x", translationX}, {"y", translationY}, {"z", translationZ}};
         state["rotation"] = {{"x", rotationX}, {"y", rotationY}, {"z", rotationZ}};
         return state;
     }
 
 private:
+    std::string linkName; // Name of the link (optional) 
     float translationX, translationY, translationZ; // meters
     float rotationX, rotationY, rotationZ;         // radians
     LinkType type;                                     // Degree of freedom
@@ -69,6 +74,21 @@ private:
     float maxSpeed;                                // Max speed (m/s or rad/s)
     float currentValue;                            // Current position (m or rad)
     float requestedValue;                          // Requested position (m or rad)
+
+    // Convert Type enum to string
+    static std::string toString(LinkType type) {
+        switch (type) {
+            case LinkType::STATIC: return "STATIC";
+            case LinkType::X: return "X";
+            case LinkType::Y: return "Y";
+            case LinkType::Z: return "Z";
+            case LinkType::ROT_X: return "ROT_X";
+            case LinkType::ROT_Y: return "ROT_Y";
+            case LinkType::ROT_Z: return "ROT_Z";
+            default: return "UNKNOWN";
+        }
+    }
+
 };
 
 class RoboticArm {
@@ -77,13 +97,13 @@ public:
         // Hardcode robot: base (STATIC), arm1 (ROT_Z), arm2 (ROT_Z)
         links = {
             // Base: 1.5m tall, 0.3m x 0.3m
-            RobotLink(0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f, 
+            RobotLink("base", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f, 
                       RobotLink::LinkType::STATIC, 0.0f, 0.0f, 0.0f),
             // Arm1: 1m long (X), rotates around Z at base top (0, 0, 1.5)
-            RobotLink(1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
+            RobotLink("arm1", 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
                       RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 1.0f), // ±π, 1 rad/s
             // Arm2: 0.7m long (X), rotates around Z at arm1 end
-            RobotLink(0.7f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
+            RobotLink("arm2", 0.7f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
                       RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 1.0f)  // ±π, 1 rad/s
         };
     }
