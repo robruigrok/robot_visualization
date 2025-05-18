@@ -13,6 +13,7 @@ const controlsDiv = document.getElementById('controls')!;
 const scene = new THREE.Scene();
 const meshes: THREE.Mesh[] = []; // Store link meshes
 let links: LinkState[] = []; // Store links for Send All
+let controlsInitialized = false; // Track if controls are created
 
 // WebSocket handlers
 ws.onopen = () => console.log('Connected to WebSocket server');
@@ -24,7 +25,6 @@ ws.onmessage = (event: MessageEvent) => {
 
     // Clear previous UI
     stateDiv.innerHTML = '';
-    controlsDiv.innerHTML = '';
 
     // Create UI for each link
     links.forEach((link, index) => {
@@ -58,45 +58,51 @@ ws.onmessage = (event: MessageEvent) => {
       }
       stateP.innerHTML = `${link.link_name}: <span id="state-${link.link_name}">${stateText}</span>`;
       stateDiv.appendChild(stateP);
-
-      // Controls for movable links
-      if (link.movable !== 'STATIC') {
-        const controlP = document.createElement('p');
-        // make distinction between translation and rotation
-        if (link.movable === 'X' || link.movable === 'Y' || link.movable === 'Z') {
-            controlP.innerHTML = `
-            Set ${link.link_name}:
-            <input type="number" id="input-${link.link_name}" placeholder="Enter distance (m)" step="0.01" />
-            <button id="send-${link.link_name}">Send</button>
-            `;
-        }
-        else {
-            controlP.innerHTML = `
-            Set ${link.link_name}: 
-            <input type="number" id="input-${link.link_name}" placeholder="Enter angle (deg)" step="1.0" />
-            <button id="send-${link.link_name}">Send</button>
-            `;
-        }
-        // controlP.innerHTML = `
-        //   Set ${link.link_name}: 
-        //   <input type="number" id="input-${link.link_name}" placeholder="Enter angle (deg)" step="1.0" />
-        //   <button id="send-${link.link_name}">Send</button>
-        // `;
-        controlsDiv.appendChild(controlP);
-
-        // Add button handler
-        const button = document.getElementById(`send-${link.link_name}`) as HTMLButtonElement;
-        const input = document.getElementById(`input-${link.link_name}`) as HTMLInputElement;
-        button.addEventListener('click', () => {
-          const value = parseFloat(input.value);
-          if (!isNaN(value)) {
-            ws.send(JSON.stringify({ link: index, value: value })); // Keep for compatibility
-            console.log('Sent:', { link: index, value: value });
-            // input.value = ''; // Optional: Clear input
-          }
-        });
-      }
     });
+
+
+    // Generate controls only once
+    if (!controlsInitialized) {
+      links.forEach((link, index) => {
+        if (link.movable !== 'STATIC') {
+          const controlP = document.createElement('p');
+          // make distinction between translation and rotation
+          if (link.movable === 'X' || link.movable === 'Y' || link.movable === 'Z') {
+              controlP.innerHTML = `
+              Set ${link.link_name}:
+              <input type="number" id="input-${link.link_name}" placeholder="Enter distance (m)" step="0.01" />
+              <button id="send-${link.link_name}">Send</button>
+              `;
+          }
+          else {
+              controlP.innerHTML = `
+              Set ${link.link_name}: 
+              <input type="number" id="input-${link.link_name}" placeholder="Enter angle (deg)" step="1.0" />
+              <button id="send-${link.link_name}">Send</button>
+              `;
+          }
+          // controlP.innerHTML = `
+          //   Set ${link.link_name}: 
+          //   <input type="number" id="input-${link.link_name}" placeholder="Enter angle (deg)" step="1.0" />
+          //   <button id="send-${link.link_name}">Send</button>
+          // `;
+          controlsDiv.appendChild(controlP);
+
+          // Add button handler
+          const button = document.getElementById(`send-${link.link_name}`) as HTMLButtonElement;
+          const input = document.getElementById(`input-${link.link_name}`) as HTMLInputElement;
+          button.addEventListener('click', () => {
+            const value = parseFloat(input.value);
+            if (!isNaN(value)) {
+              ws.send(JSON.stringify({ link: index, value: value })); // Keep for compatibility
+              console.log('Sent:', { link: index, value: value });
+              // input.value = ''; // Optional: Clear input
+            }
+          });
+        }
+      });
+      controlsInitialized = true; // Set flag to true after creating controls
+    }
 
     // Clear previous meshes
     meshes.forEach(mesh => scene.remove(mesh));
