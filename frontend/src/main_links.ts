@@ -103,24 +103,47 @@ ws.onmessage = (event: MessageEvent) => {
     meshes.length = 0;
 
     // Create meshes for each link
-    links.forEach(link => {
+    links.forEach((link, index) => {
+      // Determine geometry based on non-zero translation
       let geometry: THREE.BoxGeometry;
-      if (link.link_name === 'base') {
-        geometry = new THREE.BoxGeometry(0.3, 0.3, 1.5);
-        geometry.translate(0, 0, 0.75); // Center at bottom
+      let length: number;
+      let translateX = 0, translateY = 0, translateZ = 0;
+
+      if (link.translation.x !== 0) {
+        length = link.translation.x;
+        geometry = new THREE.BoxGeometry(length, 0.2, 0.2); // Extend in X
+        translateX = length / 2; // Origin at X=0
+      } else if (link.translation.y !== 0) {
+        length = link.translation.y;
+        geometry = new THREE.BoxGeometry(0.2, length, 0.2); // Extend in Y
+        translateY = length / 2; // Origin at Y=0
       } else {
-        const length = link.translation.x; // Use translation.x as arm length
-        geometry = new THREE.BoxGeometry(length, 0.2, 0.2);
-        geometry.translate(length / 2, 0, 0); // Pivot at end
+        length = link.translation.z || 0.75; // Default 0.75m if zero
+        geometry = new THREE.BoxGeometry(0.2, 0.2, length); // Extend in Z
+        translateZ = length / 2; // Origin at Z=0
       }
 
-      const material = new THREE.MeshBasicMaterial({ color: link.link_name === 'base' ? 0x888888 : link.link_name === 'arm1' ? 0xff0000 : 0x00ff00 });
+      geometry.translate(translateX, translateY, translateZ); // Set origin at extension start
+
+      // Material and color
+      const material = new THREE.MeshBasicMaterial({
+        color: link.link_name === 'base' ? 0x888888 :
+               link.link_name === 'arm1' ? 0xff0000 : 0x00ff00
+      });
+
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(link.translation.x, link.translation.y, link.translation.z);
-      mesh.rotation.set(link.rotation.x, link.rotation.y, link.rotation.z);
+
+      // Apply rotation first (in radians)
+      mesh.rotation.set(
+        THREE.MathUtils.degToRad(link.rotation.x),
+        THREE.MathUtils.degToRad(link.rotation.y),
+        THREE.MathUtils.degToRad(link.rotation.z)
+      );
 
       // Parent to previous mesh (hierarchical)
       if (meshes.length > 0) {
+              // Apply translation in rotated frame
+        mesh.position.set(links[index-1].translation.x, links[index-1].translation.y, links[index-1].translation.z);
         meshes[meshes.length - 1].add(mesh);
       } else {
         scene.add(mesh);
