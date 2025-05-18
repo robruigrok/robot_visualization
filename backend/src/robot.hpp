@@ -102,6 +102,9 @@ public:
             // Arm1: 1m long (X), rotates around Z at base top (0, 0, 1.5)
             RobotLink("arm1", 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
                       RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 1.0f), // ±π, 1 rad/s
+            // Arm offset: 0.2m down (Z), static
+            RobotLink("arm_offset", 0.0f, 0.0f, -0.2f, 0.0f, 0.0f, 0.0f, 
+                      RobotLink::LinkType::STATIC, 0.0f, 0.0f, 0.0f),
             // Arm2: 0.7m long (X), rotates around Z at arm1 end
             RobotLink("arm2", 0.7f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
                       RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 1.0f)  // ±π, 1 rad/s
