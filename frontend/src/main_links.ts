@@ -94,8 +94,8 @@ ws.onmessage = (event: MessageEvent) => {
           button.addEventListener('click', () => {
             const value = parseFloat(input.value);
             if (!isNaN(value)) {
-              ws.send(JSON.stringify({ link: index, value: value })); // Keep for compatibility
-              console.log('Sent:', { link: index, value: value });
+              ws.send(JSON.stringify({ link_name: link.link_name, value: value })); // Keep for compatibility
+              console.log('Sent:', { link_name: link.link_name, value: value });
               // input.value = ''; // Optional: Clear input
             }
           });
