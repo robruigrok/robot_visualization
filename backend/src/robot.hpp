@@ -53,6 +53,14 @@ public:
         }
     }
 
+    // Get JSON state for this link. Only include relevant values
+    json getState() const {
+        json state;
+        state["translation"] = {{"x", translationX}, {"y", translationY}, {"z", translationZ}};
+        state["rotation"] = {{"x", rotationX}, {"y", rotationY}, {"z", rotationZ}};
+        return state;
+    }
+
 private:
     float translationX, translationY, translationZ; // meters
     float rotationX, rotationY, rotationZ;         // radians
@@ -87,7 +95,11 @@ public:
     }
 
     json getState() const {
-        return {{"actuator1", actuator1}, {"actuator2", actuator2}};
+        json state = json::array();
+        for (const auto& link : links) {
+            state.push_back(link.getState());
+        }
+        return state;
     }
 
     // Set requested actuator positions
