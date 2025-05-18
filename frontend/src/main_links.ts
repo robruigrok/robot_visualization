@@ -12,13 +12,14 @@ const stateDiv = document.getElementById('state')!;
 const controlsDiv = document.getElementById('controls')!;
 const scene = new THREE.Scene();
 const meshes: THREE.Mesh[] = []; // Store link meshes
+let links: LinkState[] = []; // Store links for Send All
 
 // WebSocket handlers
 ws.onopen = () => console.log('Connected to WebSocket server');
 
 ws.onmessage = (event: MessageEvent) => {
   try {
-    const links: LinkState[] = JSON.parse(event.data);
+    links = JSON.parse(event.data); // Store links globally
     console.log('Received:', links);
 
     // Clear previous UI
@@ -89,9 +90,8 @@ ws.onmessage = (event: MessageEvent) => {
         button.addEventListener('click', () => {
           const value = parseFloat(input.value);
           if (!isNaN(value)) {
-            const radians = THREE.MathUtils.degToRad(value);
-            ws.send(JSON.stringify({ link: index, value: radians }));
-            console.log('Sent:', { link: index, value: radians });
+            ws.send(JSON.stringify({ link: index, value: value })); // Keep for compatibility
+            console.log('Sent:', { link: index, value: value });
             // input.value = ''; // Optional: Clear input
           }
         });
@@ -154,6 +154,22 @@ ws.onmessage = (event: MessageEvent) => {
     console.error('Invalid JSON:', error);
   }
 };
+
+// Send All button handler
+const sendAllButton = document.getElementById('send-all') as HTMLButtonElement;
+sendAllButton.addEventListener('click', () => {
+  const requests = links
+    .filter(link => link.movable !== 'STATIC')
+    .map(link => {
+      const input = document.getElementById(`input-${link.link_name}`) as HTMLInputElement;
+      const value = parseFloat(input.value);
+      return { link_name: link.link_name, value: isNaN(value) ? 0 : value };
+    });
+  if (requests.length > 0) {
+    ws.send(JSON.stringify(requests));
+    console.log('Sent All:', requests);
+  }
+});
 
 ws.onerror = (error: Event) => console.error('WebSocket error:', error);
 ws.onclose = () => console.log('WebSocket closed');
