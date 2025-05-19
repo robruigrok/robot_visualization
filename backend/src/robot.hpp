@@ -56,7 +56,7 @@ public:
         else if (type == LinkType::ROT_X || type == LinkType::ROT_Y || type == LinkType::ROT_Z)
         {
             // Rotational: radians, rad/s, rad/s²
-            posController = PDController(10.0f, 1.0f); // Higher gains for smaller angular range
+            posController = PDController(10.0f, 2.0f); // Higher gains for smaller angular range
             velController = PDController(20.0f, 2.0f);
         }
         else
@@ -103,7 +103,9 @@ public:
         if (type == LinkType::STATIC) return 0.0f;
         // Position controller: outputs velocity reference
         float pos_error = pos_ref - pos_actual;
-        float pos_error_deriv = (pos_error - prevPosError) / dt;
+        // float pos_error_deriv = (pos_error - prevPosError) / dt;
+        // instead of using the derivative of the position error, use the velocity
+        float pos_error_deriv = -vel_actual; // I think the sign should be negative
         prevPosError = pos_error;
         float vel_ref = posController.compute(pos_error, pos_error_deriv);
         // Limit velocity reference to maxSpeed
@@ -278,16 +280,16 @@ public:
         links = {
             // Base: 1.5m tall, 0.3m x 0.3m
             RobotLink("base", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f,
-                      RobotLink::LinkType::Z, 1.0f, 2.0f, 0.5f, 0.25f),
+                      RobotLink::LinkType::Z, 1.0f, 2.0f, 0.2f, 0.2f),
             // Arm1: 1m long (X), rotates around Z at base top (0, 0, 1.5)
             RobotLink("arm1", 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.1f, 0.05f), // ±π, 1 rad/s
+                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.2f, 0.2f), // ±π, 1 rad/s
             // Arm offset: 0.2m down (Z), static
             RobotLink("arm_offset", 0.0f, 0.0f, -0.2f, 0.0f, 0.0f, 0.0f,
                       RobotLink::LinkType::STATIC, 0.0f, 0.0f, 0.0f, 0.0f),
             // Arm2: 0.7m long (X), rotates around Z at arm1 end
             RobotLink("arm2", 0.7f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.1f, 0.05f) // ±π, 1 rad/s
+                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.2f, 0.2f) // ±π, 1 rad/s
         };
     }
 
