@@ -17,6 +17,7 @@ class WebSocketServer {
 public:
     WebSocketServer(RoboticArm& arm):arm_(arm) {
         server_.init_asio();
+        server_.set_reuse_addr(true);
         server_.set_open_handler([this](connection_hdl hdl) {
             connections_.insert(hdl);
             std::cout << "Client connected" << std::endl;
