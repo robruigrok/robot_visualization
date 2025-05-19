@@ -56,8 +56,8 @@ public:
         else if (type == LinkType::ROT_X || type == LinkType::ROT_Y || type == LinkType::ROT_Z)
         {
             // Rotational: radians, rad/s, rad/s²
-            posController = PDController(10.0f, 2.0f); // Higher gains for smaller angular range
-            velController = PDController(20.0f, 2.0f);
+            posController = PDController(2.0f, 0.2f);
+            velController = PDController(5.0f, 0.5f);
         }
         else
         {
