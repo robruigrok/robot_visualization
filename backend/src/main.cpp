@@ -81,7 +81,15 @@ public:
                             rotz = rotz * M_PI / 180.0f;
                             std::cout << "Received goal_setpoints: x=" << x << ", y=" << y 
                                       << ", z=" << z << ", rotz=" << rotz << " rad" << std::endl;
-                            // TODO: Implement goal pose handling in RoboticArm
+                            // Set the goal pose in the robotic arm
+                            arm_.setGoalPose(x, y, z, rotz);
+                            // Get the arm lengths
+                            // float arm1_length, arm2_length, arm3_length;
+                            // arm_.getLinkLengths(arm1_length, arm2_length, arm3_length, "arm1", "arm2", "arm3");
+                            // Compute the inverse kinematics
+                            arm_.computeJointAngles(x, y, rotz);
+
+
                         } else {
                             std::cerr << "Invalid goal_setpoints: Missing x, y, z, or rotz" << std::endl;
                         }
