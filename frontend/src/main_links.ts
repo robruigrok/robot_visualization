@@ -7,6 +7,13 @@ interface LinkState {
   rotation: { x: number; y: number; z: number };
 }
 
+interface GoalPose {
+  x: number;
+  y: number;
+  z: number;
+  rotz: number;
+}
+
 const ws = new WebSocket('ws://localhost:3000');
 const stateDiv = document.getElementById('state')!;
 const controlsDiv = document.getElementById('controls')!;
@@ -175,6 +182,19 @@ sendAllButton.addEventListener('click', () => {
     ws.send(JSON.stringify(requests));
     console.log('Sent All:', requests);
   }
+});
+
+// Send Goal button handler
+const sendGoalButton = document.getElementById('send-goal') as HTMLButtonElement;
+sendGoalButton.addEventListener('click', () => {
+  const goalPose: GoalPose = {
+    x: parseFloat((document.getElementById('goal-x') as HTMLInputElement).value) || 0,
+    y: parseFloat((document.getElementById('goal-y') as HTMLInputElement).value) || 0,
+    z: parseFloat((document.getElementById('goal-z') as HTMLInputElement).value) || 0,
+    rotz: parseFloat((document.getElementById('goal-rotz') as HTMLInputElement).value) || 0
+  };
+  ws.send(JSON.stringify({ goal_pose: goalPose }));
+  console.log('Sent Goal:', goalPose);
 });
 
 ws.onerror = (error: Event) => console.error('WebSocket error:', error);
