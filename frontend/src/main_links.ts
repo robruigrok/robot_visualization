@@ -101,9 +101,8 @@ ws.onmessage = (event: MessageEvent) => {
           button.addEventListener('click', () => {
             const value = parseFloat(input.value);
             if (!isNaN(value)) {
-              ws.send(JSON.stringify([{ link_name: link.link_name, value: value }])); // Keep for compatibility
-              console.log('Sent:', { link_name: link.link_name, value: value });
-              // input.value = ''; // Optional: Clear input
+              ws.send(JSON.stringify({ type: 'link_setpoints', data: [{ link_name: link.link_name, value: value }] }));
+              console.log('Sent link_setpoints:', { link_name: link.link_name, value: value });
             }
           });
         }
@@ -179,8 +178,8 @@ sendAllButton.addEventListener('click', () => {
       return { link_name: link.link_name, value: isNaN(value) ? 0 : value };
     });
   if (requests.length > 0) {
-    ws.send(JSON.stringify(requests));
-    console.log('Sent All:', requests);
+    ws.send(JSON.stringify({ type: 'link_setpoints', data: requests }));
+    console.log('Sent link_setpoints:', requests);
   }
 });
 
@@ -193,8 +192,8 @@ sendGoalButton.addEventListener('click', () => {
     z: parseFloat((document.getElementById('goal-z') as HTMLInputElement).value) || 0,
     rotz: parseFloat((document.getElementById('goal-rotz') as HTMLInputElement).value) || 0
   };
-  ws.send(JSON.stringify({ goal_pose: goalPose }));
-  console.log('Sent Goal:', goalPose);
+  ws.send(JSON.stringify({ type: 'goal_setpoints', data: { goal_pose: goalPose } }));
+  console.log('Sent goal_setpoints:', goalPose);
 });
 
 ws.onerror = (error: Event) => console.error('WebSocket error:', error);
