@@ -24,11 +24,21 @@ private:
     float Kd; // Derivative gain
 };
 
+struct Pose
+{
+    float x = 0.0f, y = 0.0f, z = 0.0f; // meters
+    float rot_x = 0.0f, rot_y = 0.0f, rot_z = 0.0f; // radians
+};
+
+struct Velocity
+{
+    float vel_x = 0.0f, vel_y = 0.0f, vel_z = 0.0f; // m/s
+    float rot_x = 0.0f, rot_y = 0.0f, rot_z = 0.0f; // rad/s
+};
 struct MoveBase
 {
-    float x = 0.0f, y = 0.0f, z = 0.0f;           
-    float rot_x = 0.0f, rot_y = 0.0f, rot_z = 0.0f;
-    float vel_x = 0.0f, vel_y = 0.0f, vel_z = 0.0f;
+    Pose pose;
+    Velocity velocity;
 };
 
 class RobotLink
@@ -96,6 +106,16 @@ public:
         {
             requestedValue = value;
         }
+    }
+
+    void setPose(Pose pose)
+    {
+        translationX = pose.x;
+        translationY = pose.y;
+        translationZ = pose.z;
+        rotationX = pose.rot_x;
+        rotationY = pose.rot_y;
+        rotationZ = pose.rot_z;
     }
 
     // Compute acceleration for velocity tracking
@@ -289,7 +309,7 @@ public:
         // Hardcode robot: base (STATIC), arm1 (ROT_Z), arm2 (ROT_Z)
         // Entities in links: translation x, y z, rotation x, y, z, type, min, max, speed, acceleration
         links = {
-            RobotLink("move_base_x", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f,
+            RobotLink("move_base_x", 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                       RobotLink::LinkType::Move_Base, 0.0, 0.0f, 0.0f, 0.0f),     
             // Base: 1.5m tall, 0.3m x 0.3m
             RobotLink("base", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f,
@@ -356,14 +376,67 @@ public:
 
     void moveBase()
     {
+        move_base.pose = move_base_goal; // for testing
+        // update the link
+        for (auto &link : links)
+        {
+            if (link.getLinkName() == "move_base_x")
+            {
+                link.setPose(move_base.pose);
+            }
+        }
+        
         // step 1: express the goal position in the base frame
+        Pose goal_pose_world; // ugly, use Pose object perhaps later.
+        goal_pose_world.x = goal_x;
+        goal_pose_world.y = goal_y;
+        goal_pose_world.z = goal_z;
+        goal_pose_world.rot_z = goal_rot_z;
+        Pose goal_pose_wrt_robot = convertGoalPoseInBaseFrame(goal_pose_world);
+
+        // print
+        std::cout << "Goal pose in base frame: x=" << goal_pose_wrt_robot.x
+                  << ", y=" << goal_pose_wrt_robot.y
+                  << ", z=" << goal_pose_wrt_robot.z
+                  << ", rot_z=" << goal_pose_wrt_robot.rot_z << std::endl;
 
         // step 2: with this position, call the computeJointAngles function
+        setGoalPose(goal_pose_wrt_robot.x, goal_pose_wrt_robot.y, goal_pose_wrt_robot.z, goal_pose_wrt_robot.rot_z);
 
+        // compute and set new joint reference angles
+        computeJointAngles(goal_pose_wrt_robot.x, goal_pose_wrt_robot.y, goal_pose_wrt_robot.rot_z);
         // optional step 2.5: get base velocity and compute velocity feed foward for joints.
 
         // step 3: move the base and check again next time step.
+        
     }
+
+    Pose convertGoalPoseInBaseFrame(Pose goal_pose)
+    {
+        // Get base pose in world frame
+        float x_r = move_base.pose.x;
+        float y_r = move_base.pose.y;
+        float z_r = move_base.pose.z;
+        float rot_z_r = move_base.pose.rot_z;
+
+        // translat the goal pose
+        float x_trans = goal_pose.x - x_r;
+        float y_trans = goal_pose.y - y_r;
+        float z_trans = goal_pose.z - z_r;
+
+        // rotate base
+        float cos_theta = cos(-rot_z_r);
+        float sin_theta = sin(-rot_z_r);
+        
+        Pose goal_pose_wrt_robot;
+        goal_pose_wrt_robot.x = x_trans * cos_theta - y_trans * sin_theta;
+        goal_pose_wrt_robot.y = x_trans * sin_theta + y_trans * cos_theta;
+        goal_pose_wrt_robot.z = z_trans;
+        goal_pose_wrt_robot.rot_z = goal_pose.rot_z - rot_z_r; // Relative orientation    
+
+        return goal_pose_wrt_robot;
+    }
+
 
     // Getter specifically for Monumental Robot with 3 arms
     // void getLinkLengths(float& arm1_length, float& arm2_length, float& arm3_length,
@@ -510,7 +583,8 @@ private:
     float goal_rot_z;                // radians
     // set current position ov base
     MoveBase move_base = {};        // position and rotation of the base
-    MoveBase move_base_goal = {};   // goal position and rotation of the base. Ignore velocity.
+    Pose move_base_goal = {};   // goal position and rotation of the base. Ignore velocity.
+    float move_base_velocity = 0.2f; // m/s
 };
 
 #endif
