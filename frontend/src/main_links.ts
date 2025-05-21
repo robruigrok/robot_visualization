@@ -63,8 +63,10 @@ ws.onmessage = (event: MessageEvent) => {
         default:
           stateText = 'Unknown';
       }
-      stateP.innerHTML = `${link.link_name}: <span id="state-${link.link_name}">${stateText}</span>`;
-      stateDiv.appendChild(stateP);
+      if (link.movable !== 'Move_Base') { // Avoid displaying movable base
+        stateP.innerHTML = `${link.link_name}: <span id="state-${link.link_name}">${stateText}</span>`;
+        stateDiv.appendChild(stateP);
+      }
     });
 
 
@@ -198,6 +200,19 @@ sendGoalButton.addEventListener('click', () => {
   };
   ws.send(JSON.stringify({ type: 'goal_setpoints', data: { goal_pose: goalPose } }));
   console.log('Sent goal_setpoints:', goalPose);
+});
+
+// Send Move Base button handler
+const sendMoveBaseButton = document.getElementById('move_base') as HTMLButtonElement;
+sendMoveBaseButton.addEventListener('click', () => {
+  const baseGoalPose: GoalPose = {
+    x: parseFloat((document.getElementById('base-x') as HTMLInputElement).value) || 0,
+    y: parseFloat((document.getElementById('base-y') as HTMLInputElement).value) || 0,
+    z: parseFloat((document.getElementById('base-z') as HTMLInputElement).value) || 0,
+    rotz: parseFloat((document.getElementById('base-rotz') as HTMLInputElement).value) || 0
+  };
+  ws.send(JSON.stringify({ type: 'move_base_setpoints', data: { goal_pose: baseGoalPose } }));
+  console.log('Sent goal_setpoints:', baseGoalPose);
 });
 
 ws.onerror = (error: Event) => console.error('WebSocket error:', error);

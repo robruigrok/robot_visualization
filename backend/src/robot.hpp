@@ -24,6 +24,13 @@ private:
     float Kd; // Derivative gain
 };
 
+struct MoveBase
+{
+    float x = 0.0f, y = 0.0f, z = 0.0f;           
+    float rot_x = 0.0f, rot_y = 0.0f, rot_z = 0.0f;
+    float vel_x = 0.0f, vel_y = 0.0f, vel_z = 0.0f;
+};
+
 class RobotLink
 {
 public:
@@ -35,7 +42,8 @@ public:
         Z,      // Translation along Z
         ROT_X,  // Rotation around X
         ROT_Y,  // Rotation around Y
-        ROT_Z   // Rotation around Z
+        ROT_Z,  // Rotation around Z
+        Move_Base // Move base. Make different type so it does not show up in UI
     };
 
     // Constructor
@@ -265,6 +273,8 @@ private:
             return "ROT_Y";
         case LinkType::ROT_Z:
             return "ROT_Z";
+        case LinkType::Move_Base:
+            return "Move_Base";
         default:
             return "UNKNOWN";
         }
@@ -279,6 +289,8 @@ public:
         // Hardcode robot: base (STATIC), arm1 (ROT_Z), arm2 (ROT_Z)
         // Entities in links: translation x, y z, rotation x, y, z, type, min, max, speed, acceleration
         links = {
+            RobotLink("move_base_x", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f,
+                      RobotLink::LinkType::Move_Base, 0.0, 0.0f, 0.0f, 0.0f),     
             // Base: 1.5m tall, 0.3m x 0.3m
             RobotLink("base", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f,
                       RobotLink::LinkType::Z, 1.0f, 2.0f, 0.2f, 0.2f),
@@ -332,6 +344,25 @@ public:
         goal_y = y;
         goal_z = z;
         goal_rot_z = rotz; // should already be in radians
+    }
+
+    void setMoveBaseGoalPose(float x, float y, float z, float rotz)
+    {
+        move_base_goal.x = x;
+        move_base_goal.y = y;
+        move_base_goal.z = z;
+        move_base_goal.rot_z = rotz; // should already be in radians
+    }
+
+    void moveBase()
+    {
+        // step 1: express the goal position in the base frame
+
+        // step 2: with this position, call the computeJointAngles function
+
+        // optional step 2.5: get base velocity and compute velocity feed foward for joints.
+
+        // step 3: move the base and check again next time step.
     }
 
     // Getter specifically for Monumental Robot with 3 arms
@@ -477,6 +508,9 @@ private:
     // store the goal pose
     float goal_x, goal_y, goal_z;   // meters
     float goal_rot_z;                // radians
+    // set current position ov base
+    MoveBase move_base = {};        // position and rotation of the base
+    MoveBase move_base_goal = {};   // goal position and rotation of the base. Ignore velocity.
 };
 
 #endif

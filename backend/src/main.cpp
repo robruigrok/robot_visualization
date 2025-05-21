@@ -89,15 +89,37 @@ public:
                             // Compute the inverse kinematics
                             arm_.computeJointAngles(x, y, rotz);
 
-
                         } else {
                             std::cerr << "Invalid goal_setpoints: Missing x, y, z, or rotz" << std::endl;
                         }
                     } else {
                         std::cerr << "Invalid goal_setpoints: Missing goal_pose" << std::endl;
                     }
-                }
-                else {
+                } else if (message_type == "move_base_setpoints") {
+                    if (data["data"].contains("goal_pose")) {
+                        const auto& goal_pose = data["data"]["goal_pose"];
+                        if (goal_pose.contains("x") && goal_pose.contains("y") && 
+                            goal_pose.contains("z") && goal_pose.contains("rotz")) {
+                            float x = goal_pose["x"].get<float>();
+                            float y = goal_pose["y"].get<float>();
+                            float z = goal_pose["z"].get<float>();
+                            float rotz = goal_pose["rotz"].get<float>();
+                            // Convert rotz from degrees to radians
+                            rotz = rotz * M_PI / 180.0f;
+                            std::cout << "Received move_base_setpoints: x=" << x << ", y=" << y 
+                                      << ", z=" << z << ", rotz=" << rotz << " rad" << std::endl;
+                            // Set the move_base goal pose in the robotic arm
+                            arm_.setMoveBaseGoalPose(x, y, z, rotz);
+
+                            arm_.moveBase();
+
+                        } else {
+                            std::cerr << "Invalid move_base_setpoints: Missing x, y, z, or rotz" << std::endl;
+                        }
+                    }
+                    
+
+                } else {
                     std::cerr << "Unknown message type: " << message_type << std::endl;
                 }
             } catch (const std::exception& e) {
