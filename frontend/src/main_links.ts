@@ -139,8 +139,12 @@ ws.onmessage = (event: MessageEvent) => {
 
       // Material and color
       const material = new THREE.MeshBasicMaterial({
-        color: link.link_name === 'base' ? 0x888888 :
-               link.link_name === 'arm1' ? 0xff0000 : 0x00ff00
+        color: link.movable === 'STATIC' ? 0x95a5a6  :
+               link.link_name === 'base' ? 0xd35400  :
+               link.link_name === 'arm1' ? 0x0000ff : 
+               link.link_name === 'arm2' ? 0xff0000 :
+               link.link_name === 'arm3' ? 0xffff00 :              
+               0x00ff00
       });
 
       const mesh = new THREE.Mesh(geometry, material);
@@ -201,12 +205,23 @@ ws.onclose = () => console.log('WebSocket closed');
 
 // Three.js setup
 const camera = new THREE.PerspectiveCamera(75, 600 / 400, 0.1, 1000);
-camera.position.set(3, 1, 2);
+camera.position.set(3.5, 2, 2.5);
+camera.lookAt(0, 0, 1.5);
+camera.rotateZ(THREE.MathUtils.degToRad(97));
+// if I want to look at it from above
+camera.position.set(0, 0, 5);
 camera.lookAt(0, 0, 2);
-camera.rotateZ(THREE.MathUtils.degToRad(90));
+
+// add ground plane grid
+const gridSize = 10; // in meters
+const divisions = 10;
+const gridHelper = new THREE.GridHelper(gridSize, divisions, 0xe74c3c, 0x888888); // Colors: center line and grid lines
+gridHelper.position.set(0, 0, 0); // Place it at z=0 (ground plane)
+gridHelper.rotation.x = THREE.MathUtils.degToRad(90); // Not sure why, but needs rotation
+scene.add(gridHelper);
 
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas') as HTMLCanvasElement });
-renderer.setSize(600, 400);
+renderer.setSize(900, 600);
 
 // Animation loop
 function animate() {
