@@ -132,7 +132,7 @@ public:
         if (type == LinkType::STATIC) return 0.0f;
         // Position controller: outputs velocity reference
         float pos_error = pos_ref - pos_actual;
-        pos_error = fmod(pos_error + M_PI, 2 * M_PI) - M_PI; // take into account wrapping
+        pos_error = fmod(pos_error + M_PI, 2 * M_PI) - M_PI; // TODO: TAKE SHORTEST DISTANCE
 
         // float pos_error_deriv = (pos_error - prevPosError) / dt;
         // instead of using the derivative of the position error, use the velocity
@@ -342,6 +342,7 @@ public:
             // link.moveAroundZAxis();
             // link.moveToRequestedValue(getUpdateInterval());
             // call position controller of the link
+            moveBase(); // move the base
             float acc = link.computePositionControl(
                 link.getRequestedValue(), link.getCurrentValue(), link.getCurrentVelocity(), dt);
             // simulate the link
@@ -386,13 +387,22 @@ public:
 
     void moveBase()
     {
-        move_base.pose = move_base_goal; // for testing
-        // update the link
+        // move_base.pose = move_base_goal; // for testing
+        std::cout << "test" << std::endl;   
+        computeMoveBaseVelocity();  // compute the velocity of the base
+        // move the base one step.
         for (auto &link : links)
         {
             if (link.getLinkName() == "move_base_x")
-            {
-                link.setPose(move_base.pose);
+            {   
+                Pose new_pose = move_base.pose;
+                new_pose.x += move_base.velocity.vel_x * getUpdateInterval() / 1000.0f;
+                new_pose.y += move_base.velocity.vel_y * getUpdateInterval() / 1000.0f;
+                new_pose.z += move_base.velocity.vel_z * getUpdateInterval() / 1000.0f;
+                new_pose.rot_z += move_base.velocity.rot_z * getUpdateInterval() / 1000.0f;
+                // update
+                move_base.pose = new_pose;
+                link.setPose(new_pose); // for frontend
             }
         }
         
@@ -575,6 +585,67 @@ public:
         
     }
 
+    void computeMoveBaseVelocity()
+    {
+        // print some debug info
+        std::cout << "Top of computeMoveBaseVelocity. Something is wrong." << std::endl;
+        
+        // Step 1: Compute translation differences
+        float dx = move_base_goal.x - move_base.pose.x;
+        float dy = move_base_goal.y - move_base.pose.y;
+        float dz = move_base_goal.z - move_base.pose.z;
+
+        // Step 2: Compute shortest angular difference (handles wrapping)
+        float angular_error = move_base_goal.rot_z - move_base.pose.rot_z;
+        angular_error = fmod(angular_error + M_PI, 2 * M_PI) - M_PI; // Normalize to [-pi, pi] TODO FIND SHORTEST DISTANCE
+
+        // Step 3: Compute linear distance (Euclidean distance in 3D)
+        float linear_distance = sqrt(dx * dx + dy * dy + dz * dz);
+
+        // Step 4: Avoid division by zero and check if already at goal
+        if (linear_distance < 1e-6 && fabs(angular_error) < 1e-6) {
+            return; // No movement needed
+        }
+
+        // Step 5: Compute time to complete motion based on max linear speed
+        float time_to_complete = linear_distance / move_base_velocity;
+
+        // Step 6: Compute linear velocities
+        if (linear_distance > 1e-6) {
+            move_base.velocity.vel_x = dx / time_to_complete;
+            move_base.velocity.vel_y = dy / time_to_complete;
+            move_base.velocity.vel_z = dz / time_to_complete;
+        }
+
+        // Step 7: Compute angular velocity to finish rotation at the same time
+        if (time_to_complete > 1e-6) {
+            move_base.velocity.rot_z = angular_error / time_to_complete;
+        } else {
+            // If linear distance is zero, use max angular speed to rotate in place
+            move_base.velocity.rot_z = angular_error > 0 ? move_base_rotation : -move_base_rotation;
+            if (fabs(angular_error) < 1e-6) {
+                move_base.velocity.rot_z = 0.0f;
+            }
+        }
+
+        // Step 8: Limit angular velocity if it exceeds move_base_rotation
+        if (fabs(move_base.velocity.rot_z) > move_base_rotation) {
+            float scale = move_base_rotation / fabs(move_base.velocity.rot_z);
+            move_base.velocity.rot_z *= scale;
+            // Scale linear velocities to maintain synchronized arrival
+            move_base.velocity.vel_x *= scale;
+            move_base.velocity.vel_y *= scale;
+            move_base.velocity.vel_z *= scale;
+        }
+
+        // print the computed velocities
+        std::cout << "Computed move_base velocities: "
+                  << "vel_x=" << move_base.velocity.vel_x
+                  << ", vel_y=" << move_base.velocity.vel_y
+                  << ", vel_z=" << move_base.velocity.vel_z
+                  << ", rot_z=" << move_base.velocity.rot_z << std::endl;
+    }
+
 
     // Set requested actuator positions
     // void setRequestedActuator(float value) { requestedActuator1 = value; }
@@ -597,6 +668,7 @@ private:
     MoveBase move_base = {};        // position and rotation of the base
     Pose move_base_goal = {};   // goal position and rotation of the base. Ignore velocity.
     float move_base_velocity = 0.2f; // m/s
+    float move_base_rotation = 0.5f; // rad/s
 };
 
 #endif
