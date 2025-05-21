@@ -132,6 +132,8 @@ public:
         if (type == LinkType::STATIC) return 0.0f;
         // Position controller: outputs velocity reference
         float pos_error = pos_ref - pos_actual;
+        pos_error = fmod(pos_error + M_PI, 2 * M_PI) - M_PI; // take into account wrapping
+
         // float pos_error_deriv = (pos_error - prevPosError) / dt;
         // instead of using the derivative of the position error, use the velocity
         float pos_error_deriv = -vel_actual; // I think the sign should be negative
@@ -366,6 +368,14 @@ public:
         goal_rot_z = rotz; // should already be in radians
     }
 
+    void setGoalPoseWorld(float x, float y, float z, float rotz)
+    {
+        goal_pose_world.x = x;
+        goal_pose_world.y = y;
+        goal_pose_world.z = z;
+        goal_pose_world.rot_z = rotz; // should already be in radians
+    }
+
     void setMoveBaseGoalPose(float x, float y, float z, float rotz)
     {
         move_base_goal.x = x;
@@ -387,11 +397,11 @@ public:
         }
         
         // step 1: express the goal position in the base frame
-        Pose goal_pose_world; // ugly, use Pose object perhaps later.
-        goal_pose_world.x = goal_x;
-        goal_pose_world.y = goal_y;
-        goal_pose_world.z = goal_z;
-        goal_pose_world.rot_z = goal_rot_z;
+        // Pose goal_pose_world; // ugly, use Pose object perhaps later.
+        // goal_pose_world.x = goal_x;
+        // goal_pose_world.y = goal_y;
+        // goal_pose_world.z = goal_z;
+        // goal_pose_world.rot_z = goal_rot_z;
         Pose goal_pose_wrt_robot = convertGoalPoseInBaseFrame(goal_pose_world);
 
         // print
@@ -578,9 +588,11 @@ public:
 private:
     std::vector<RobotLink> links;
     int update_interval_ms = 100; // 100ms update interval
-    // store the goal pose
+    // store the goal pose (robot frame)
     float goal_x, goal_y, goal_z;   // meters
     float goal_rot_z;                // radians
+    // store goal pose (world frame)
+    Pose goal_pose_world = {};
     // set current position ov base
     MoveBase move_base = {};        // position and rotation of the base
     Pose move_base_goal = {};   // goal position and rotation of the base. Ignore velocity.
