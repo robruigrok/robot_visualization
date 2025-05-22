@@ -41,6 +41,11 @@ struct MoveBase
     Velocity velocity;
 };
 
+float getAngleDifference(float angle1, float angle2)
+{
+    float diff = angle2 - angle1;
+    return std::remainder(diff, 2.0f * M_PI);
+}
 class RobotLink
 {
 public:
@@ -620,10 +625,10 @@ public:
         // Choose the solution closest to the current angles
         float min_distance = std::numeric_limits<float>::max();
         int best_solution = 0;
-        for (int i = 0; i < 2; ++i) {   // TODO: Here I should check for wrapping around
-            float distance = std::pow(solutions[i].rot1 - current_rot1, 2) +
-                            std::pow(solutions[i].rot2 - current_rot2, 2) +
-                            std::pow(solutions[i].rot3 - current_rot3, 2);
+        for (int i = 0; i < 2; ++i) {
+            float distance = std::pow(getAngleDifference(solutions[i].rot1, current_rot1), 2) +
+                            std::pow(getAngleDifference(solutions[i].rot2, current_rot2), 2) +
+                            std::pow(getAngleDifference(solutions[i].rot3, current_rot3), 2);
             if (distance < min_distance) {
                 min_distance = distance;
                 best_solution = i;
