@@ -36,13 +36,13 @@ ws.onmessage = (event: MessageEvent) => {
           stateText = 'Fixed';
           break;
         case 'X':
-          stateText = `${link.translation.x.toFixed(1)} m`;
+          stateText = `${link.translation.x.toFixed(2)} m`;
           break;
         case 'Y':
-          stateText = `${link.translation.y.toFixed(1)} m`;
+          stateText = `${link.translation.y.toFixed(2)} m`;
           break;
         case 'Z':
-          stateText = `${link.translation.z.toFixed(1)} m`;
+          stateText = `${link.translation.z.toFixed(2)} m`;
           break;
         case 'ROT_X':
           stateText = `${THREE.MathUtils.radToDeg(link.rotation.x).toFixed(1)} deg`;
