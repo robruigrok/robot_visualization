@@ -2,37 +2,144 @@
 #define ROBOTIC_ARM_HPP
 
 #include <nlohmann/json.hpp>
+#include <vector>
+#include <string>
+
 
 using json = nlohmann::json;
 
+class RobotLink {
+public:
+    enum class LinkType {
+        STATIC,  // Fixed link (no movement)
+        X,       // Translation along X
+        Y,       // Translation along Y
+        Z,       // Translation along Z
+        ROT_X,   // Rotation around X
+        ROT_Y,   // Rotation around Y
+        ROT_Z    // Rotation around Z
+    };
+
+    // Constructor
+    RobotLink(const std::string& name, float x, float y, float z, float rx, float ry, float rz, 
+              LinkType type, float minVal, float maxVal, float maxSpeed)
+        : linkName(name), translationX(x), translationY(y), translationZ(z),
+          rotationX(rx), rotationY(ry), rotationZ(rz),
+          type(type), minValue(minVal), maxValue(maxVal), maxSpeed(maxSpeed),
+          currentValue(0.0f), requestedValue(0.0f) {}
+
+    // Getters
+    float getTranslationX() const { return translationX; }
+    float getTranslationY() const { return translationY; }
+    float getTranslationZ() const { return translationZ; }
+    float getRotationX() const { return rotationX; }
+    float getRotationY() const { return rotationY; }
+    float getRotationZ() const { return rotationZ; }
+    LinkType getLinkType() const { return type; }
+    std::string getLinkName() const { return linkName; }
+    float getCurrentValue() const { return currentValue; }
+    float getRequestedValue() const { return requestedValue; }
+
+    // Set requested value (with bounds checking)
+    void setRequestedValue(float value) {
+        if (value >= minValue && value <= maxValue) {
+            requestedValue = value;
+        }
+    }
+
+    // Temporary function to simulate movement
+    void moveAroundZAxis() {
+        // Simulate movement (to be replaced with interpolation)
+        if (type == LinkType::ROT_Z) {
+            // currentValue += 0.0174533f; // ~1 deg/sec (1 deg = 0.0174533 rad)
+            // if (currentValue > 6.2832f) currentValue -= 6.2832f; // Wrap at 2π
+            // rotationZ = currentValue; // Update rotation
+            // instead for now, directly set the value
+            rotationZ = requestedValue; // Update rotation
+        }
+    }
+
+    // Get JSON state for this link. Only include relevant values
+    json getState() const {
+        json state;
+        state["link_name"] = linkName;
+        state["movable"] = toString(type);
+        state["translation"] = {{"x", translationX}, {"y", translationY}, {"z", translationZ}};
+        state["rotation"] = {{"x", rotationX}, {"y", rotationY}, {"z", rotationZ}};
+        return state;
+    }
+
+private:
+    std::string linkName; // Name of the link (optional) 
+    float translationX, translationY, translationZ; // meters
+    float rotationX, rotationY, rotationZ;         // radians
+    LinkType type;                                     // Degree of freedom
+    float minValue, maxValue;                      // Bounds for DoF (m or rad)
+    float maxSpeed;                                // Max speed (m/s or rad/s)
+    float currentValue;                            // Current position (m or rad)
+    float requestedValue;                          // Requested position (m or rad)
+
+    // Convert Type enum to string
+    static std::string toString(LinkType type) {
+        switch (type) {
+            case LinkType::STATIC: return "STATIC";
+            case LinkType::X: return "X";
+            case LinkType::Y: return "Y";
+            case LinkType::Z: return "Z";
+            case LinkType::ROT_X: return "ROT_X";
+            case LinkType::ROT_Y: return "ROT_Y";
+            case LinkType::ROT_Z: return "ROT_Z";
+            default: return "UNKNOWN";
+        }
+    }
+
+};
+
 class RoboticArm {
 public:
-    RoboticArm() : actuator1(0.0f), actuator2(0.0f) {}
+    RoboticArm() {
+        // Hardcode robot: base (STATIC), arm1 (ROT_Z), arm2 (ROT_Z)
+        // Entities in links: translation x, y z, rotation x, y, z, type, min, max, speed
+        links = {
+            // Base: 1.5m tall, 0.3m x 0.3m
+            RobotLink("base", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f, 
+                      RobotLink::LinkType::Z, 0.0f, 0.0f, 0.0f),
+            // Arm1: 1m long (X), rotates around Z at base top (0, 0, 1.5)
+            RobotLink("arm1", 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
+                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 1.0f), // ±π, 1 rad/s
+            // Arm offset: 0.2m down (Z), static
+            RobotLink("arm_offset", 0.0f, 0.0f, -0.2f, 0.0f, 0.0f, 0.0f, 
+                      RobotLink::LinkType::STATIC, 0.0f, 0.0f, 0.0f),
+            // Arm2: 0.7m long (X), rotates around Z at arm1 end
+            RobotLink("arm2", 0.7f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
+                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 1.0f)  // ±π, 1 rad/s
+        };
+    }
 
     void update() {
-        actuator1 += 1.0f;
-        actuator2 += 0.5f;
-        if (actuator1 > 360.0f) actuator1 -= 360.0f;
-        if (actuator2 > 360.0f) actuator2 -= 360.0f;
+        for (auto& link : links) {
+            link.moveAroundZAxis();
+        }
     }
 
     json getState() const {
-        return {{"actuator1", actuator1}, {"actuator2", actuator2}};
+        json state = json::array();
+        for (const auto& link : links) {
+            state.push_back(link.getState());
+        }
+        return state;
     }
 
     // Set requested actuator positions
-    void setRequestedActuator1(float value) { requestedActuator1 = value; }
-    void setRequestedActuator2(float value) { requestedActuator2 = value; }
+    // void setRequestedActuator(float value) { requestedActuator1 = value; }
 
     // Get requested positions (for future use)
-    float getRequestedActuator1() const { return requestedActuator1; }
-    float getRequestedActuator2() const { return requestedActuator2; }
+
+    std::vector<RobotLink>& getLinks() { return links; }    // TODO: make const, for now like this to set the requested value
 
 private:
-    float actuator1;
-    float actuator2;
-    float requestedActuator1;
-    float requestedActuator2;
+    std::vector<RobotLink> links;
+
 };
 
 #endif
