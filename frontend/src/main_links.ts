@@ -7,6 +7,13 @@ interface LinkState {
   rotation: { x: number; y: number; z: number };
 }
 
+interface GoalPose {
+  x: number;
+  y: number;
+  z: number;
+  rotz: number;
+}
+
 const ws = new WebSocket('ws://localhost:3000');
 const stateDiv = document.getElementById('state')!;
 const controlsDiv = document.getElementById('controls')!;
@@ -94,9 +101,8 @@ ws.onmessage = (event: MessageEvent) => {
           button.addEventListener('click', () => {
             const value = parseFloat(input.value);
             if (!isNaN(value)) {
-              ws.send(JSON.stringify([{ link_name: link.link_name, value: value }])); // Keep for compatibility
-              console.log('Sent:', { link_name: link.link_name, value: value });
-              // input.value = ''; // Optional: Clear input
+              ws.send(JSON.stringify({ type: 'link_setpoints', data: [{ link_name: link.link_name, value: value }] }));
+              console.log('Sent link_setpoints:', { link_name: link.link_name, value: value });
             }
           });
         }
@@ -133,8 +139,12 @@ ws.onmessage = (event: MessageEvent) => {
 
       // Material and color
       const material = new THREE.MeshBasicMaterial({
-        color: link.link_name === 'base' ? 0x888888 :
-               link.link_name === 'arm1' ? 0xff0000 : 0x00ff00
+        color: link.movable === 'STATIC' ? 0x95a5a6  :
+               link.link_name === 'base' ? 0xd35400  :
+               link.link_name === 'arm1' ? 0x0000ff : 
+               link.link_name === 'arm2' ? 0xff0000 :
+               link.link_name === 'arm3' ? 0xffff00 :              
+               0x00ff00
       });
 
       const mesh = new THREE.Mesh(geometry, material);
@@ -172,9 +182,22 @@ sendAllButton.addEventListener('click', () => {
       return { link_name: link.link_name, value: isNaN(value) ? 0 : value };
     });
   if (requests.length > 0) {
-    ws.send(JSON.stringify(requests));
-    console.log('Sent All:', requests);
+    ws.send(JSON.stringify({ type: 'link_setpoints', data: requests }));
+    console.log('Sent link_setpoints:', requests);
   }
+});
+
+// Send Goal button handler
+const sendGoalButton = document.getElementById('send-goal') as HTMLButtonElement;
+sendGoalButton.addEventListener('click', () => {
+  const goalPose: GoalPose = {
+    x: parseFloat((document.getElementById('goal-x') as HTMLInputElement).value) || 0,
+    y: parseFloat((document.getElementById('goal-y') as HTMLInputElement).value) || 0,
+    z: parseFloat((document.getElementById('goal-z') as HTMLInputElement).value) || 0,
+    rotz: parseFloat((document.getElementById('goal-rotz') as HTMLInputElement).value) || 0
+  };
+  ws.send(JSON.stringify({ type: 'goal_setpoints', data: { goal_pose: goalPose } }));
+  console.log('Sent goal_setpoints:', goalPose);
 });
 
 ws.onerror = (error: Event) => console.error('WebSocket error:', error);
@@ -182,12 +205,23 @@ ws.onclose = () => console.log('WebSocket closed');
 
 // Three.js setup
 const camera = new THREE.PerspectiveCamera(75, 600 / 400, 0.1, 1000);
-camera.position.set(3, 1, 2);
+camera.position.set(3.5, 2, 2.5);
+camera.lookAt(0, 0, 1.5);
+camera.rotateZ(THREE.MathUtils.degToRad(97));
+// if I want to look at it from above
+camera.position.set(0, 0, 5);
 camera.lookAt(0, 0, 2);
-camera.rotateZ(THREE.MathUtils.degToRad(90));
+
+// add ground plane grid
+const gridSize = 10; // in meters
+const divisions = 10;
+const gridHelper = new THREE.GridHelper(gridSize, divisions, 0xe74c3c, 0x888888); // Colors: center line and grid lines
+gridHelper.position.set(0, 0, 0); // Place it at z=0 (ground plane)
+gridHelper.rotation.x = THREE.MathUtils.degToRad(90); // Not sure why, but needs rotation
+scene.add(gridHelper);
 
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas') as HTMLCanvasElement });
-renderer.setSize(600, 400);
+renderer.setSize(900, 600);
 
 // Animation loop
 function animate() {

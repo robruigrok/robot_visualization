@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 #include <vector>
 #include <string>
+#include <cmath>
 
 using json = nlohmann::json;
 
@@ -289,7 +290,13 @@ public:
                       RobotLink::LinkType::STATIC, 0.0f, 0.0f, 0.0f, 0.0f),
             // Arm2: 0.7m long (X), rotates around Z at arm1 end
             RobotLink("arm2", 0.7f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.2f, 0.2f) // ±π, 1 rad/s
+                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.2f, 0.2f), // ±π, 1 rad/s
+            // Arm offset: 0.2m down (Z), static
+            RobotLink("arm_offset", 0.0f, 0.0f, -0.2f, 0.0f, 0.0f, 0.0f,
+                      RobotLink::LinkType::STATIC, 0.0f, 0.0f, 0.0f, 0.0f),        
+                      // Arm3: 0.4m long (X), rotates around Z at arm1 end
+            RobotLink("arm3", 0.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.2f, 0.2f) 
         };
     }
 
@@ -318,6 +325,143 @@ public:
         return state;
     }
 
+    // Set goal pose
+    void setGoalPose(float x, float y, float z, float rotz)
+    {
+        goal_x = x;
+        goal_y = y;
+        goal_z = z;
+        goal_rot_z = rotz; // should already be in radians
+    }
+
+    // Getter specifically for Monumental Robot with 3 arms
+    // void getLinkLengths(float& arm1_length, float& arm2_length, float& arm3_length,
+    //                                 const std::string& arm1, const std::string& arm2, const std::string& arm3) const {
+
+    //     for (const auto& link : links) {
+    //         const std::string& name = link.getLinkName();
+    //         if (name == arm1) {
+    //             arm1_length = link.getTranslationX();
+    //         } else if (name == arm2) {
+    //             arm2_length = link.getTranslationX();
+    //         } else if (name == arm3) {
+    //             arm3_length = link.getTranslationX();
+    //         }
+    //     }
+    // }
+
+    std::tuple<float, float, float> getLinkLengths(const std::string& arm1, const std::string& arm2, const std::string& arm3) const {
+        float arm1_length = 0.0f, arm2_length = 0.0f, arm3_length = 0.0f;
+        for (const auto& link : links) {
+            const std::string& name = link.getLinkName();
+            if (name == arm1) {
+                arm1_length = link.getTranslationX();
+            } else if (name == arm2) {
+                arm2_length = link.getTranslationX();
+            } else if (name == arm3) {
+                arm3_length = link.getTranslationX();
+            }
+        }
+        return {arm1_length, arm2_length, arm3_length};
+    }
+
+    std::tuple<float, float, float> getCurrentAngles(const std::string& arm1, const std::string& arm2, const std::string& arm3) const {
+    float rot1 = 0.0f, rot2 = 0.0f, rot3 = 0.0f;
+        for ( auto& link : links) {
+            const std::string& name = link.getLinkName();
+            if (name == arm1) {
+                rot1 = link.getRotationZ();
+            } else if (name == arm2) {
+                rot2 = link.getRotationZ();
+            } else if (name == arm3) {
+                rot3 = link.getRotationZ();
+            }
+        }
+        return {rot1, rot2, rot3};
+    }
+
+    void setRequestedAngles(float rot1, float rot2, float rot3) {
+        for (auto& link : links) {
+            const std::string& name = link.getLinkName();
+            if (name == "arm1") {
+                link.setRequestedValue(rot1);
+            } else if (name == "arm2") {
+                link.setRequestedValue(rot2);
+            } else if (name == "arm3") {
+                link.setRequestedValue(rot3);
+            }
+        }
+    }
+
+    struct JointAngles {
+        float rot1, rot2, rot3;
+    };
+
+    // JointAngles computeJointAngles(float x, float y, float rot_z, const std::vector<float>& current_angles) const;
+
+    void computeJointAngles(float x, float y, float rot_z) {
+        // Get arm lengths
+        auto [L1, L2, L3] = getLinkLengths("arm1", "arm2", "arm3");
+        // Get current angles
+        auto [current_rot1, current_rot2, current_rot3] = getCurrentAngles("arm1", "arm2", "arm3");
+
+        // Compute position of joint between arm2 and arm3
+        float x2 = x - L3 * std::cos(rot_z);
+        float y2 = y - L3 * std::sin(rot_z);
+
+        // Compute distance to (x2, y2)
+        float r = std::sqrt(x2 * x2 + y2 * y2);
+
+        // Check reachability
+        if (r > L1 + L2 || r < std::abs(L1 - L2)) {
+            std::cerr << "Error: Target position (" << x << ", " << y << ") is unreachable" << std::endl;
+            return;
+        }
+
+        // Compute rot2 using law of cosines
+        float cos_rot2 = (r * r - L1 * L1 - L2 * L2) / (2 * L1 * L2);
+        // Clamp to [-1, 1] to handle numerical errors
+        cos_rot2 = std::max(-1.0f, std::min(1.0f, cos_rot2));
+        float rot2_pos = std::acos(cos_rot2);
+        float rot2_neg = -rot2_pos;
+
+        // Compute rot1 for both solutions
+        float beta = std::atan2(y2, x2);
+        std::vector<JointAngles> solutions(2);
+
+        // Solution 1: Positive rot2
+        float alpha_pos = std::atan2(L2 * std::sin(rot2_pos), L1 + L2 * std::cos(rot2_pos));
+        solutions[0].rot1 = beta - alpha_pos;
+        solutions[0].rot2 = rot2_pos;
+        solutions[0].rot3 = rot_z - solutions[0].rot1 - solutions[0].rot2;
+
+        // Solution 2: Negative rot2
+        float alpha_neg = std::atan2(L2 * std::sin(rot2_neg), L1 + L2 * std::cos(rot2_neg));
+        solutions[1].rot1 = beta - alpha_neg;
+        solutions[1].rot2 = rot2_neg;
+        solutions[1].rot3 = rot_z - solutions[1].rot1 - solutions[1].rot2;
+        
+        // Choose the solution closest to the current angles
+        float min_distance = std::numeric_limits<float>::max();
+        int best_solution = 0;
+        for (int i = 0; i < 2; ++i) {
+            float distance = std::pow(solutions[i].rot1 - current_rot1, 2) +
+                            std::pow(solutions[i].rot2 - current_rot2, 2) +
+                            std::pow(solutions[i].rot3 - current_rot3, 2);
+            if (distance < min_distance) {
+                min_distance = distance;
+                best_solution = i;
+            }
+        }
+
+        // return solutions[best_solution];
+        setRequestedAngles(solutions[best_solution].rot1, solutions[best_solution].rot2, solutions[best_solution].rot3);
+        std::cout << "Computed joint angles: " << solutions[best_solution].rot1 << ", "
+                  << solutions[best_solution].rot2 << ", " << solutions[best_solution].rot3 << std::endl;
+        
+    }
+
+
     // Set requested actuator positions
     // void setRequestedActuator(float value) { requestedActuator1 = value; }
 
@@ -330,6 +474,9 @@ public:
 private:
     std::vector<RobotLink> links;
     int update_interval_ms = 100; // 100ms update interval
+    // store the goal pose
+    float goal_x, goal_y, goal_z;   // meters
+    float goal_rot_z;                // radians
 };
 
 #endif
