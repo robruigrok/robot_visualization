@@ -59,7 +59,7 @@ public:
                                             link.getLinkType() == RobotLink::LinkType::ROT_Z) {
                                             value = value * M_PI / 180.0f; // convert to radians
                                         }
-                                        link.setRequestedValue(value);
+                                        link.setRequestedPosition(value);
                                         break;
                                     }
                                 }

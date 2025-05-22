@@ -62,7 +62,7 @@ public:
         : linkName(name), translationX(x), translationY(y), translationZ(z),
           rotationX(rx), rotationY(ry), rotationZ(rz),
           type(type), minValue(minVal), maxValue(maxVal), maxSpeed(maxSpeed), maxAcc(maxAcc),
-          currentPosition(0.0f), requestedValue(0.0f), currentVelocity(0.0f),
+          currentPosition(0.0f), requestedPosition(0.0f), currentVelocity(0.0f),
           prevPosError(0.0f), prevVelError(0.0f)
     {
         // Initialize PD controllers based on LinkType
@@ -96,16 +96,22 @@ public:
     LinkType getLinkType() const { return type; }
     std::string getLinkName() const { return linkName; }
     float getCurrentPosition() const { return currentPosition; }
-    float getRequestedValue() const { return requestedValue; }
+    float getRequestedPosition() const { return requestedPosition; }
     float getCurrentVelocity() const { return currentVelocity; }
 
     // Set requested value (with bounds checking)
-    void setRequestedValue(float value)
+    void setRequestedPosition(float value)
     {
         if (value >= minValue && value <= maxValue)
         {
-            requestedValue = value;
+            requestedPosition = value;
         }
+    }
+
+    // Set feed forward velocity
+    void setFeedForwardVelocity(float value)
+    {
+        feedForwardVelocity = value;
     }
 
     void setPose(Pose pose)
@@ -139,6 +145,8 @@ public:
         // float pos_error_deriv = -currentVelocity; // I think the sign should be negative
         prevPosError = pos_error;
         float vel_ref = posController.compute(pos_error, pos_error_deriv);
+        // Add feed forward velocity
+        vel_ref += feedForwardVelocity;
         // Limit velocity reference to maxSpeed
         vel_ref = std::max(-maxSpeed, std::min(maxSpeed, vel_ref));
         // Velocity controller: outputs acceleration
@@ -147,7 +155,7 @@ public:
 
     // Simulate one step: update position and velocity based on acceleration
     void simulate(float acc, float dt) {
-        if (type == LinkType::STATIC) return;
+        if (type == LinkType::STATIC || type == LinkType::Move_Base) return;
 
         // Apply acceleration limit
         acc = std::max(-maxAcc, std::min(maxAcc, acc));
@@ -194,7 +202,7 @@ public:
             // if (currentPosition > 6.2832f) currentPosition -= 6.2832f; // Wrap at 2π
             // rotationZ = currentPosition; // Update rotation
             // instead for now, directly set the value
-            rotationZ = requestedValue; // Update rotation
+            rotationZ = requestedPosition; // Update rotation
         }
     }
 
@@ -203,7 +211,7 @@ public:
         // TODO: check if requested value is within bounds
         // TODO: make distinction between translation and rotation since rotation can wrap around.
         // move to requested value, with max speed. Use update interval to calculate speed
-        float delta = requestedValue - currentPosition;
+        float delta = requestedPosition - currentPosition;
         float max_step = maxSpeed * updateInterval / 1000.0f; // convert ms to seconds
         // for debuggin, output delta and max_step
         std::cout << "Delta: " << delta << ", Max Step: " << max_step << std::endl;
@@ -220,7 +228,7 @@ public:
         }
         else
         {
-            currentPosition = requestedValue; // reached requested value
+            currentPosition = requestedPosition; // reached requested value
         }
         // write the currentPosition to the correct translation/rotation
         if (type == LinkType::ROT_X)
@@ -269,8 +277,9 @@ private:
     float maxSpeed;                                 // Max speed (m/s or rad/s)
     float maxAcc;                                   // Max acceleration (m/s² or rad/s²)
     float currentPosition;                             // Current position (m or rad)
-    float requestedValue;                           // Requested position (m or rad)
+    float requestedPosition;                           // Requested position (m or rad)
     float currentVelocity;                         // m/s or rad/s
+    float feedForwardVelocity;                     // m/s or rad/s
     float prevPosError;                            // Previous position error
     float prevVelError;                            // Previous velocity error
     PDController posController;                    // Position PD controller
@@ -346,8 +355,7 @@ public:
             // link.moveAroundZAxis();
             // link.moveToRequestedValue(getUpdateInterval());
             // call position controller of the link
-            float acc = link.computePositionControl(
-                link.getRequestedValue(), dt);
+            float acc = link.computePositionControl(link.getRequestedPosition(), dt);
             // simulate the link
             link.simulate(acc, dt);
         }
@@ -390,6 +398,9 @@ public:
 
     void moveBase()
     {
+        // store current joint goal angles, required for computing feed forward
+        auto [g1, g2, g3] = getLinkGoalPositions("arm1", "arm2", "arm3");
+
         // move_base.pose = move_base_goal; // for testing
         std::cout << "test" << std::endl;   
         computeMoveBaseVelocity();  // compute the velocity of the base
@@ -431,6 +442,16 @@ public:
         // optional step 2.5: get base velocity and compute velocity feed foward for joints.
 
         // step 3: move the base and check again next time step.
+        auto [g1_f, g2_f, g3_f] = getLinkGoalPositions("arm1", "arm2", "arm3");
+
+        // compute required velocity for each joint
+        float ff_1 = (g1_f - g1) / (getUpdateInterval() / 1000.0f); // TODO: check for wrapping around
+        float ff_2 = (g2_f - g2) / (getUpdateInterval() / 1000.0f);
+        float ff_3 = (g3_f - g3) / (getUpdateInterval() / 1000.0f);
+
+        // set FF velocity for each joint
+        setFeedForwardVelocity("arm1", ff_1, "arm2", ff_2, "arm3", ff_3);
+
         
     }
 
@@ -507,15 +528,43 @@ public:
         return {rot1, rot2, rot3};
     }
 
+    std::tuple<float, float, float> getLinkGoalPositions(const std::string& arm1, const std::string& arm2, const std::string& arm3) const {
+    float rot1 = 0.0f, rot2 = 0.0f, rot3 = 0.0f;
+        for ( auto& link : links) {
+            const std::string& name = link.getLinkName();
+            if (name == arm1) {
+                rot1 = link.getRequestedPosition();
+            } else if (name == arm2) {
+                rot2 = link.getRequestedPosition();
+            } else if (name == arm3) {
+                rot3 = link.getRequestedPosition();
+            }
+        }
+        return {rot1, rot2, rot3};
+    }
+
+    void setFeedForwardVelocity(const std::string& arm1, float ff1, const std::string& arm2, float ff2, const std::string& arm3, float ff3) {
+        for ( auto& link : links) {
+            const std::string& name = link.getLinkName();
+            if (name == arm1) {
+                link.setFeedForwardVelocity(ff1);
+            } else if (name == arm2) {
+                link.setFeedForwardVelocity(ff2);
+            } else if (name == arm3) {
+                link.setFeedForwardVelocity(ff3);
+            }
+        }
+    }
+
     void setRequestedAngles(float rot1, float rot2, float rot3) {
         for (auto& link : links) {
             const std::string& name = link.getLinkName();
             if (name == "arm1") {
-                link.setRequestedValue(rot1);
+                link.setRequestedPosition(rot1);
             } else if (name == "arm2") {
-                link.setRequestedValue(rot2);
+                link.setRequestedPosition(rot2);
             } else if (name == "arm3") {
-                link.setRequestedValue(rot3);
+                link.setRequestedPosition(rot3);
             }
         }
     }
@@ -571,7 +620,7 @@ public:
         // Choose the solution closest to the current angles
         float min_distance = std::numeric_limits<float>::max();
         int best_solution = 0;
-        for (int i = 0; i < 2; ++i) {
+        for (int i = 0; i < 2; ++i) {   // TODO: Here I should check for wrapping around
             float distance = std::pow(solutions[i].rot1 - current_rot1, 2) +
                             std::pow(solutions[i].rot2 - current_rot2, 2) +
                             std::pow(solutions[i].rot3 - current_rot3, 2);
