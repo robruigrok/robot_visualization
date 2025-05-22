@@ -32,6 +32,30 @@ ws.onmessage = (event: MessageEvent) => {
 ws.onerror = (error: Event) => console.error('WebSocket error:', error);
 ws.onclose = () => console.log('WebSocket closed');
 
+// Send button handlers
+const sendActuator1 = document.getElementById('send-actuator1') as HTMLButtonElement;
+const sendActuator2 = document.getElementById('send-actuator2') as HTMLButtonElement;
+const inputActuator1 = document.getElementById('input-actuator1') as HTMLInputElement;
+const inputActuator2 = document.getElementById('input-actuator2') as HTMLInputElement;
+
+sendActuator1?.addEventListener('click', () => {
+  const value = parseFloat(inputActuator1.value);
+  if (!isNaN(value)) {
+    ws.send(JSON.stringify({ actuator1: value }));
+    console.log('Sent:', { actuator1: value });
+    // inputActuator1.value = ''; // Clear input
+  }
+});
+
+sendActuator2?.addEventListener('click', () => {
+  const value = parseFloat(inputActuator2.value);
+  if (!isNaN(value)) {
+    ws.send(JSON.stringify({ actuator2: value }));
+    console.log('Sent:', { actuator2: value });
+    // inputActuator2.value = ''; // Clear input
+  }
+});
+
 // Three.js setup
 
 // Create a scene, camera, and renderer
