@@ -332,7 +332,7 @@ public:
                       RobotLink::LinkType::Move_Base, 0.0, 0.0f, 0.0f, 0.0f),     
             // Base: 1.5m tall, 0.3m x 0.3m
             RobotLink("base", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f,
-                      RobotLink::LinkType::Z, 1.0f, 2.0f, 0.2f, 0.2f),
+                      RobotLink::LinkType::Z, 1.0f, 2.0f, velocity_gain*0.2f, acceleration_gain*0.2f),
             // Arm1: 1m long (X), rotates around Z at base top (0, 0, 1.5)
             RobotLink("arm1", 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                       RobotLink::LinkType::ROT_Z, range_gain*-3.1416f, range_gain*3.1416f, velocity_gain*0.2f, acceleration_gain*0.2f), // ±π, 1 rad/s
@@ -460,7 +460,7 @@ public:
         float ff_3 = (g3_f - g3) / (getUpdateInterval() / 1000.0f);
 
         // set FF velocity for each joint
-        setFeedForwardVelocity("arm1", ff_1, "arm2", ff_2, "arm3", ff_3);
+        setFeedForwardVelocity("arm1", ff_1, "arm2", ff_2, "arm3", ff_3, "base", -move_base.velocity.vel_z);
 
         
     }
@@ -553,7 +553,7 @@ public:
         return {rot1, rot2, rot3};
     }
 
-    void setFeedForwardVelocity(const std::string& arm1, float ff1, const std::string& arm2, float ff2, const std::string& arm3, float ff3) {
+    void setFeedForwardVelocity(const std::string& arm1, float ff1, const std::string& arm2, float ff2, const std::string& arm3, float ff3, const std::string& base, float ffz) {
         for ( auto& link : links) {
             const std::string& name = link.getLinkName();
             if (name == arm1) {
@@ -562,6 +562,8 @@ public:
                 link.setFeedForwardVelocity(ff2);
             } else if (name == arm3) {
                 link.setFeedForwardVelocity(ff3);
+            } else if (name == base) {
+                link.setFeedForwardVelocity(ffz);
             }
         }
     }
@@ -651,15 +653,23 @@ public:
         // loop over al links, get height of current tool
         float tool_height = 0.0f;
         for (auto& link : links) {
+            if (link.getLinkName() == "move_base_x") {
+                // skip the offset
+                continue;
+            }
             tool_height += link.getTranslationZ();
         }
 
         float z_error = goal_z - tool_height;
+        // print goal height and current height
+        std::cout << "Goal height: " << goal_z << ", Current height: " << tool_height << std::endl;
 
         // simply add this value to the base link
         for (auto& link : links) {
             if (link.getLinkName() == "base") {
                 link.setRequestedPosition(link.getCurrentPosition() + z_error);
+                // print the requested position
+                std::cout << "Requested base position: " << link.getRequestedPosition() << std::endl;
                 break;
             }
         }
