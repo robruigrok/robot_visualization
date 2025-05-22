@@ -62,7 +62,7 @@ public:
         : linkName(name), translationX(x), translationY(y), translationZ(z),
           rotationX(rx), rotationY(ry), rotationZ(rz),
           type(type), minValue(minVal), maxValue(maxVal), maxSpeed(maxSpeed), maxAcc(maxAcc),
-          currentValue(0.0f), requestedValue(0.0f), currentVelocity(0.0f),
+          currentPosition(0.0f), requestedValue(0.0f), currentVelocity(0.0f),
           prevPosError(0.0f), prevVelError(0.0f)
     {
         // Initialize PD controllers based on LinkType
@@ -95,7 +95,7 @@ public:
     float getRotationZ() const { return rotationZ; }
     LinkType getLinkType() const { return type; }
     std::string getLinkName() const { return linkName; }
-    float getCurrentValue() const { return currentValue; }
+    float getCurrentPosition() const { return currentPosition; }
     float getRequestedValue() const { return requestedValue; }
     float getCurrentVelocity() const { return currentVelocity; }
 
@@ -119,30 +119,30 @@ public:
     }
 
     // Compute acceleration for velocity tracking
-    float computeVelocityControl(float vel_ref, float vel_actual, float dt) {
+    float computeVelocityControl(float vel_ref, float dt) {
         if (type == LinkType::STATIC) return 0.0f;
-        float error = vel_ref - vel_actual;
+        float error = vel_ref - currentVelocity;
         float error_deriv = (error - prevVelError) / dt;
         prevVelError = error;
         return velController.compute(error, error_deriv);
     }
 
     // Compute acceleration for position tracking (cascaded control)
-    float computePositionControl(float pos_ref, float pos_actual, float vel_actual, float dt) {
+    float computePositionControl(float pos_ref, float dt) {
         if (type == LinkType::STATIC) return 0.0f;
         // Position controller: outputs velocity reference
-        float pos_error = pos_ref - pos_actual;
+        float pos_error = pos_ref - currentPosition;
         pos_error = fmod(pos_error + M_PI, 2 * M_PI) - M_PI; // Take the shortest distance
 
         float pos_error_deriv = (pos_error - prevPosError) / dt;
         // instead of using the derivative of the position error, use the velocity
-        // float pos_error_deriv = -vel_actual; // I think the sign should be negative
+        // float pos_error_deriv = -currentVelocity; // I think the sign should be negative
         prevPosError = pos_error;
         float vel_ref = posController.compute(pos_error, pos_error_deriv);
         // Limit velocity reference to maxSpeed
         vel_ref = std::max(-maxSpeed, std::min(maxSpeed, vel_ref));
         // Velocity controller: outputs acceleration
-        return computeVelocityControl(vel_ref, vel_actual, dt);
+        return computeVelocityControl(vel_ref, dt);
     }
 
     // Simulate one step: update position and velocity based on acceleration
@@ -157,30 +157,30 @@ public:
         currentVelocity = std::max(-maxSpeed, std::min(maxSpeed, currentVelocity));
 
         // Update position
-        currentValue += currentVelocity * dt;
+        currentPosition += currentVelocity * dt;
 
         // For rotational links, wrap position within minValue and maxValue
         if (type == LinkType::ROT_X || type == LinkType::ROT_Y || type == LinkType::ROT_Z) {
-            while (currentValue > maxValue) currentValue -= 2.0f * M_PI;
-            while (currentValue < minValue) currentValue += 2.0f * M_PI;
+            while (currentPosition > maxValue) currentPosition -= 2.0f * M_PI;
+            while (currentPosition < minValue) currentPosition += 2.0f * M_PI;
         } else {
             // For translational links, clamp position
-            currentValue = std::max(minValue, std::min(maxValue, currentValue));
+            currentPosition = std::max(minValue, std::min(maxValue, currentPosition));
         }
 
         // Update translation/rotation based on LinkType
         if (type == LinkType::ROT_X) {
-            rotationX = currentValue;
+            rotationX = currentPosition;
         } else if (type == LinkType::ROT_Y) {
-            rotationY = currentValue;
+            rotationY = currentPosition;
         } else if (type == LinkType::ROT_Z) {
-            rotationZ = currentValue;
+            rotationZ = currentPosition;
         } else if (type == LinkType::X) {
-            translationX = currentValue;
+            translationX = currentPosition;
         } else if (type == LinkType::Y) {
-            translationY = currentValue;
+            translationY = currentPosition;
         } else if (type == LinkType::Z) {
-            translationZ = currentValue;
+            translationZ = currentPosition;
         }
     }
 
@@ -190,9 +190,9 @@ public:
         // Simulate movement (to be replaced with interpolation)
         if (type == LinkType::ROT_Z)
         {
-            // currentValue += 0.0174533f; // ~1 deg/sec (1 deg = 0.0174533 rad)
-            // if (currentValue > 6.2832f) currentValue -= 6.2832f; // Wrap at 2π
-            // rotationZ = currentValue; // Update rotation
+            // currentPosition += 0.0174533f; // ~1 deg/sec (1 deg = 0.0174533 rad)
+            // if (currentPosition > 6.2832f) currentPosition -= 6.2832f; // Wrap at 2π
+            // rotationZ = currentPosition; // Update rotation
             // instead for now, directly set the value
             rotationZ = requestedValue; // Update rotation
         }
@@ -203,7 +203,7 @@ public:
         // TODO: check if requested value is within bounds
         // TODO: make distinction between translation and rotation since rotation can wrap around.
         // move to requested value, with max speed. Use update interval to calculate speed
-        float delta = requestedValue - currentValue;
+        float delta = requestedValue - currentPosition;
         float max_step = maxSpeed * updateInterval / 1000.0f; // convert ms to seconds
         // for debuggin, output delta and max_step
         std::cout << "Delta: " << delta << ", Max Step: " << max_step << std::endl;
@@ -211,41 +211,41 @@ public:
         {
             if (delta > 0)
             {
-                currentValue += max_step;
+                currentPosition += max_step;
             }
             else
             {
-                currentValue -= max_step;
+                currentPosition -= max_step;
             }
         }
         else
         {
-            currentValue = requestedValue; // reached requested value
+            currentPosition = requestedValue; // reached requested value
         }
-        // write the currentValue to the correct translation/rotation
+        // write the currentPosition to the correct translation/rotation
         if (type == LinkType::ROT_X)
         {
-            rotationX = currentValue; // Update rotation
+            rotationX = currentPosition; // Update rotation
         }
         else if (type == LinkType::ROT_Y)
         {
-            rotationY = currentValue; // Update rotation
+            rotationY = currentPosition; // Update rotation
         }
         else if (type == LinkType::ROT_Z)
         {
-            rotationZ = currentValue; // Update rotation
+            rotationZ = currentPosition; // Update rotation
         }
         else if (type == LinkType::X)
         {
-            translationX = currentValue; // Update translation
+            translationX = currentPosition; // Update translation
         }
         else if (type == LinkType::Y)
         {
-            translationY = currentValue; // Update translation
+            translationY = currentPosition; // Update translation
         }
         else if (type == LinkType::Z)
         {
-            translationZ = currentValue; // Update translation
+            translationZ = currentPosition; // Update translation
         }
     }
 
@@ -268,7 +268,7 @@ private:
     float minValue, maxValue;                       // Bounds for DoF (m or rad)
     float maxSpeed;                                 // Max speed (m/s or rad/s)
     float maxAcc;                                   // Max acceleration (m/s² or rad/s²)
-    float currentValue;                             // Current position (m or rad)
+    float currentPosition;                             // Current position (m or rad)
     float requestedValue;                           // Requested position (m or rad)
     float currentVelocity;                         // m/s or rad/s
     float prevPosError;                            // Previous position error
@@ -347,7 +347,7 @@ public:
             // link.moveToRequestedValue(getUpdateInterval());
             // call position controller of the link
             float acc = link.computePositionControl(
-                link.getRequestedValue(), link.getCurrentValue(), link.getCurrentVelocity(), dt);
+                link.getRequestedValue(), dt);
             // simulate the link
             link.simulate(acc, dt);
         }
