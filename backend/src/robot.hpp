@@ -132,11 +132,11 @@ public:
         if (type == LinkType::STATIC) return 0.0f;
         // Position controller: outputs velocity reference
         float pos_error = pos_ref - pos_actual;
-        pos_error = fmod(pos_error + M_PI, 2 * M_PI) - M_PI; // TODO: TAKE SHORTEST DISTANCE
+        pos_error = fmod(pos_error + M_PI, 2 * M_PI) - M_PI; // Take the shortest distance
 
-        // float pos_error_deriv = (pos_error - prevPosError) / dt;
+        float pos_error_deriv = (pos_error - prevPosError) / dt;
         // instead of using the derivative of the position error, use the velocity
-        float pos_error_deriv = -vel_actual; // I think the sign should be negative
+        // float pos_error_deriv = -vel_actual; // I think the sign should be negative
         prevPosError = pos_error;
         float vel_ref = posController.compute(pos_error, pos_error_deriv);
         // Limit velocity reference to maxSpeed
@@ -310,6 +310,9 @@ public:
     {
         // Hardcode robot: base (STATIC), arm1 (ROT_Z), arm2 (ROT_Z)
         // Entities in links: translation x, y z, rotation x, y, z, type, min, max, speed, acceleration
+        float velocity_gain = 2.0f;
+        float acceleration_gain = 2.0f;
+        float range_gain = 4.0f;
         links = {
             RobotLink("move_base_x", 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                       RobotLink::LinkType::Move_Base, 0.0, 0.0f, 0.0f, 0.0f),     
@@ -318,31 +321,31 @@ public:
                       RobotLink::LinkType::Z, 1.0f, 2.0f, 0.2f, 0.2f),
             // Arm1: 1m long (X), rotates around Z at base top (0, 0, 1.5)
             RobotLink("arm1", 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.2f, 0.2f), // ±π, 1 rad/s
+                      RobotLink::LinkType::ROT_Z, range_gain*-3.1416f, range_gain*3.1416f, velocity_gain*0.2f, acceleration_gain*0.2f), // ±π, 1 rad/s
             // Arm offset: 0.2m down (Z), static
             RobotLink("arm_offset", 0.0f, 0.0f, -0.2f, 0.0f, 0.0f, 0.0f,
                       RobotLink::LinkType::STATIC, 0.0f, 0.0f, 0.0f, 0.0f),
             // Arm2: 0.7m long (X), rotates around Z at arm1 end
             RobotLink("arm2", 0.7f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.2f, 0.2f), // ±π, 1 rad/s
+                      RobotLink::LinkType::ROT_Z, range_gain*-3.1416f, range_gain*3.1416f, velocity_gain*0.2f, acceleration_gain*0.2f), // ±π, 1 rad/s
             // Arm offset: 0.2m down (Z), static
             RobotLink("arm_offset", 0.0f, 0.0f, -0.2f, 0.0f, 0.0f, 0.0f,
                       RobotLink::LinkType::STATIC, 0.0f, 0.0f, 0.0f, 0.0f),        
                       // Arm3: 0.4m long (X), rotates around Z at arm1 end
             RobotLink("arm3", 0.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                      RobotLink::LinkType::ROT_Z, -3.1416f, 3.1416f, 0.2f, 0.2f) 
+                      RobotLink::LinkType::ROT_Z, range_gain*-3.1416f, range_gain*3.1416f, velocity_gain*0.2f, acceleration_gain*0.2f) 
         };
     }
 
     void update()
     {
         float dt = getUpdateInterval() / 1000.0f; // Convert ms to seconds
+        moveBase(); // move the base
         for (auto &link : links)
         {
             // link.moveAroundZAxis();
             // link.moveToRequestedValue(getUpdateInterval());
             // call position controller of the link
-            moveBase(); // move the base
             float acc = link.computePositionControl(
                 link.getRequestedValue(), link.getCurrentValue(), link.getCurrentVelocity(), dt);
             // simulate the link
@@ -604,14 +607,23 @@ public:
 
         // Step 4: Avoid division by zero and check if already at goal
         if (linear_distance < 1e-6 && fabs(angular_error) < 1e-6) {
-            return; // No movement needed
+            // No movement needed
+            move_base.velocity.vel_x = 0.0f;
+            move_base.velocity.vel_y = 0.0f;
+            move_base.velocity.vel_z = 0.0f;
+            move_base.velocity.rot_z = 0.0f;
+            return;
         }
 
         // Step 5: Compute time to complete motion based on max linear speed
         float time_to_complete = linear_distance / move_base_velocity;
 
         // Step 6: Compute linear velocities
-        if (linear_distance > 1e-6) {
+        if (time_to_complete < update_interval_ms/1000.0f) {
+            move_base.velocity.vel_x = dx / (update_interval_ms/1000.0f);
+            move_base.velocity.vel_y = dy / (update_interval_ms/1000.0f);
+            move_base.velocity.vel_z = dz / (update_interval_ms/1000.0f);
+        } else if (linear_distance > 1e-6) {
             move_base.velocity.vel_x = dx / time_to_complete;
             move_base.velocity.vel_y = dy / time_to_complete;
             move_base.velocity.vel_z = dz / time_to_complete;
