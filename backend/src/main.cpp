@@ -42,6 +42,7 @@ public:
                 std::string message_type = data["type"].get<std::string>();
 
                 if (message_type == "link_setpoints") {
+                    arm_.setMoveModeSetJoints(true);
                     if (data["data"].is_array()) {
                         // Handle array of {link_name, value}
                         for (const auto& movable_link : data["data"]) {
@@ -69,6 +70,7 @@ public:
                     std::cerr << "Invalid JSON: Expected array" << std::endl;
                     }
                 } else if (message_type == "goal_setpoints") {
+                    arm_.setMoveModeSetJoints(false);
                     if (data["data"].contains("goal_pose")) {
                         const auto& goal_pose = data["data"]["goal_pose"];
                         if (goal_pose.contains("x") && goal_pose.contains("y") && 
@@ -98,6 +100,7 @@ public:
                         std::cerr << "Invalid goal_setpoints: Missing goal_pose" << std::endl;
                     }
                 } else if (message_type == "move_base_setpoints") {
+                    arm_.setMoveModeSetJoints(false);
                     if (data["data"].contains("goal_pose")) {
                         const auto& goal_pose = data["data"]["goal_pose"];
                         if (goal_pose.contains("x") && goal_pose.contains("y") && 

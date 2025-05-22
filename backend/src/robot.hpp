@@ -284,7 +284,7 @@ private:
     float currentPosition;                             // Current position (m or rad)
     float requestedPosition;                           // Requested position (m or rad)
     float currentVelocity;                         // m/s or rad/s
-    float feedForwardVelocity;                     // m/s or rad/s
+    float feedForwardVelocity=0;                     // m/s or rad/s
     float prevPosError;                            // Previous position error
     float prevVelError;                            // Previous velocity error
     PDController posController;                    // Position PD controller
@@ -354,7 +354,10 @@ public:
     void update()
     {
         float dt = getUpdateInterval() / 1000.0f; // Convert ms to seconds
-        moveBase(); // move the base
+        if (!move_mode_set_joints){
+            moveBase(); // move the base
+        }
+            
         for (auto &link : links)
         {
             // link.moveAroundZAxis();
@@ -721,6 +724,7 @@ public:
     std::vector<RobotLink> &getLinks() { return links; } // TODO: make const, for now like this to set the requested value
 
     int getUpdateInterval() const { return update_interval_ms; }
+    void setMoveModeSetJoints(bool mode) { move_mode_set_joints = mode; }
 
 private:
     std::vector<RobotLink> links;
@@ -735,6 +739,7 @@ private:
     Pose move_base_goal = {};   // goal position and rotation of the base. Ignore velocity.
     float move_base_velocity = 0.2f; // m/s
     float move_base_rotation = 0.5f; // rad/s
+    bool move_mode_set_joints = true; // true if move mode is set to joints, false if set to base  
 };
 
 #endif
