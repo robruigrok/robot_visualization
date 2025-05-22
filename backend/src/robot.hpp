@@ -447,7 +447,9 @@ public:
 
         // compute and set new joint reference angles
         computeJointAngles(goal_pose_wrt_robot.x, goal_pose_wrt_robot.y, goal_pose_wrt_robot.rot_z);
-        // optional step 2.5: get base velocity and compute velocity feed foward for joints.
+
+        // compute motion in z directoin
+        computeZMotion();
 
         // step 3: move the base and check again next time step.
         auto [g1_f, g2_f, g3_f] = getLinkGoalPositions("arm1", "arm2", "arm3");
@@ -645,6 +647,24 @@ public:
         
     }
 
+    void computeZMotion() {
+        // loop over al links, get height of current tool
+        float tool_height = 0.0f;
+        for (auto& link : links) {
+            tool_height += link.getTranslationZ();
+        }
+
+        float z_error = goal_z - tool_height;
+
+        // simply add this value to the base link
+        for (auto& link : links) {
+            if (link.getLinkName() == "base") {
+                link.setRequestedPosition(link.getCurrentPosition() + z_error);
+                break;
+            }
+        }
+    }
+    
     void computeMoveBaseVelocity()
     {
         // print some debug info
