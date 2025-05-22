@@ -73,7 +73,7 @@ ws.onmessage = (event: MessageEvent) => {
     // Generate controls only once
     if (!controlsInitialized) {
       links.forEach((link, index) => {
-        if (link.movable !== 'STATIC') {
+        if (link.movable !== 'STATIC' && link.movable !== 'Move_Base') {
           const controlP = document.createElement('p');
           // make distinction between translation and rotation
           if (link.movable === 'X' || link.movable === 'Y' || link.movable === 'Z') {
@@ -177,7 +177,7 @@ ws.onmessage = (event: MessageEvent) => {
 const sendAllButton = document.getElementById('send-all') as HTMLButtonElement;
 sendAllButton.addEventListener('click', () => {
   const requests = links
-    .filter(link => link.movable !== 'STATIC')
+    .filter(link => link.movable !== 'STATIC' && link.movable !== 'Move_Base')
     .map(link => {
       const input = document.getElementById(`input-${link.link_name}`) as HTMLInputElement;
       const value = parseFloat(input.value);
