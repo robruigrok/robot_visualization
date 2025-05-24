@@ -11,8 +11,16 @@ find_package(Boost REQUIRED COMPONENTS system thread)
 find_package(nlohmann_json REQUIRED)
 
 # Include WebSocket++ headers
-include_directories(${CMAKE_SOURCE_DIR}/libs/websocketpp)
+include_directories(${CMAKE_SOURCE_DIR}/include  ${CMAKE_SOURCE_DIR}/libs/websocketpp)
+
+set(SOURCE_FILES
+    src/main.cpp
+    # src/robotic_arm.cpp
+    # src/robot.hpp
+    # src/websocket_server.cpp
+    # src/websocket_server.hpp
+)
 
 # Build executable
-add_executable(backend src/main.cpp)
+add_executable(backend ${SOURCE_FILES})
 target_link_libraries(backend Boost::system Boost::thread nlohmann_json::nlohmann_json)
