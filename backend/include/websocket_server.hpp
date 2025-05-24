@@ -87,11 +87,7 @@ public:
                             // Set the goal pose in the robotic arm
                             arm_.setGoalPoseWorld(x, y, z, rotz);
                             
-                            // Get the arm lengths
-                            // float arm1_length, arm2_length, arm3_length;
-                            // arm_.getLinkLengths(arm1_length, arm2_length, arm3_length, "arm1", "arm2", "arm3");
-                            // Compute the inverse kinematics
-                            // arm_.computeJointAngles(x, y, rotz);
+                            // TODO: I think this is not required. This function is called in the arm.update() function
                             arm_.moveBase();
 
                         } else {
@@ -117,6 +113,7 @@ public:
                             // Set the move_base goal pose in the robotic arm
                             arm_.setMoveBaseGoalPose(x, y, z, rotz);
 
+                            // TODO: I think this is not required. This function is called in the arm.update() function
                             arm_.moveBase();
 
                         } else {

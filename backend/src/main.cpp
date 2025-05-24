@@ -1,18 +1,8 @@
-// #include <websocketpp/config/asio_no_tls.hpp>
-// #include <websocketpp/server.hpp>
-// #include <nlohmann/json.hpp>
+#include <nlohmann/json.hpp>
 #include <thread>
-// #include <chrono>
-// #include <set>
-// #include <iostream>
 
 #include "robot_arm.hpp"
 #include "websocket_server.hpp"
-
-// using websocketpp::connection_hdl;
-// using websocketpp::server;
-// using websocketpp::config::asio;
-// using json = nlohmann::json;
 
 int main()
 {
@@ -24,7 +14,7 @@ int main()
                               {
         while (true) {
             arm.update();
-            json state = arm.getState();
+            nlohmann::json state = arm.getState();
             ws_server.broadcast(state.dump());
             std::this_thread::sleep_for(std::chrono::milliseconds(arm.getUpdateInterval()));
         } });

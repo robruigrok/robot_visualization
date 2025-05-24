@@ -180,20 +180,6 @@ public:
         }
     }
 
-    // Temporary function to simulate movement
-    void moveAroundZAxis()
-    {
-        // Simulate movement (to be replaced with interpolation)
-        if (type == LinkType::ROT_Z)
-        {
-            // currentPosition += 0.0174533f; // ~1 deg/sec (1 deg = 0.0174533 rad)
-            // if (currentPosition > 6.2832f) currentPosition -= 6.2832f; // Wrap at 2π
-            // rotationZ = currentPosition; // Update rotation
-            // instead for now, directly set the value
-            rotationZ = requestedPosition; // Update rotation
-        }
-    }
-
     void moveToRequestedValue(int updateInterval)
     {
         // TODO: check if requested value is within bounds
