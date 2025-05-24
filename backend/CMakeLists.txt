@@ -17,7 +17,7 @@ set(SOURCE_FILES
     src/main.cpp
     # src/robotic_arm.cpp
     # src/robot.hpp
-    # src/websocket_server.cpp
+    src/websocket_server.cpp
     # src/websocket_server.hpp
 )
 

@@ -21,7 +21,7 @@ namespace utils {
         Velocity velocity;
     };
 
-    float getAngleDifference(float angle1, float angle2)
+    inline float getAngleDifference(float angle1, float angle2)
     {
         float diff = angle2 - angle1;
         return std::remainder(diff, 2.0f * M_PI);
