@@ -16,7 +16,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include  ${CMAKE_SOURCE_DIR}/libs/websoc
 set(SOURCE_FILES
     src/main.cpp
     # src/robotic_arm.cpp
-    # src/robot.hpp
+    src/robot_link.cpp
     src/websocket_server.cpp
     # src/websocket_server.hpp
 )
