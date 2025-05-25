@@ -37,10 +37,12 @@ public:
 
 private:
     // Conversions and computations
-    utils::Pose convertGoalPoseInBaseFrame(utils::Pose goal_pose);
-    void computeJointAngles(float x, float y, float rot_z);
+    utils::Pose convertGoalPoseInBaseFrame(utils::Pose goal_pose, utils::Pose base_pose);
+    std::tuple<float, float, float> computeJointAngles(float x, float y, float rot_z);
     void computeZMotion();
     void computeMoveBaseVelocity();
+    float ratioUsedByFeedForward(const std::string& arm1, float ff1, const std::string& arm2, float ff2, const std::string& arm3, float ff3, const std::string& base, float ffz);
+
     struct JointAngles {
         float rot1, rot2, rot3;
     };

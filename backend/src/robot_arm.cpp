@@ -55,19 +55,90 @@ void RoboticArm::update() {
 }
 
 void RoboticArm::moveBase() {
-    // store current joint goal angles, required for computing feed forward
+    // Get current joint goal angles, required for computing feed forward
     auto [g1, g2, g3] = getLinkGoalPositions("arm1", "arm2", "arm3");
+    
+    // compute the velocity of the base. This updates the velocity in the move_base object.
+    computeMoveBaseVelocity();
+    
+    // move the base one step using the originally planned velocity
+    utils::Pose new_pose_candidate = move_base.pose;
+    new_pose_candidate.x += move_base.velocity.vel_x * getUpdateInterval() / 1000.0f;
+    new_pose_candidate.y += move_base.velocity.vel_y * getUpdateInterval() / 1000.0f;
+    new_pose_candidate.z += move_base.velocity.vel_z * getUpdateInterval() / 1000.0f;
+    new_pose_candidate.rot_z += move_base.velocity.rot_z * getUpdateInterval() / 1000.0f;
+   
+    // express the goal position in the candidate base pose
+    utils::Pose goal_pose_wrt_robot = convertGoalPoseInBaseFrame(goal_pose_world, new_pose_candidate);
 
-    // move_base.pose = move_base_goal; // for testing
-    std::cout << "test" << std::endl;   
-    computeMoveBaseVelocity();  // compute the velocity of the base
-    // move the base one step.
-    utils::Pose new_pose = move_base.pose;
-    new_pose.x += move_base.velocity.vel_x * getUpdateInterval() / 1000.0f;
-    new_pose.y += move_base.velocity.vel_y * getUpdateInterval() / 1000.0f;
-    new_pose.z += move_base.velocity.vel_z * getUpdateInterval() / 1000.0f;
-    new_pose.rot_z += move_base.velocity.rot_z * getUpdateInterval() / 1000.0f;
-    move_base.pose = new_pose; // update the pose of the base
+    // Check whether the joint can keep up with proposed base velocity.
+    float move_base_scaling_ratio = 1.0f;
+    try
+    {
+        // get the required joint angles for the goal pose in candidate frame.
+        auto [a1, a2, a3] = computeJointAngles(goal_pose_wrt_robot.x, goal_pose_wrt_robot.y, goal_pose_wrt_robot.rot_z);
+        
+        // compute required velocity for each joint
+        float ff_1 = (a1 - g1) / (getUpdateInterval() / 1000.0f); // TODO: check for wrapping around
+        float ff_2 = (a2 - g2) / (getUpdateInterval() / 1000.0f);
+        float ff_3 = (a3 - g3) / (getUpdateInterval() / 1000.0f);
+
+        // get achievable velocity for each link
+        float scaling_ratio = ratioUsedByFeedForward("arm1", ff_1, "arm2", ff_2, "arm3", ff_3, "base", -move_base.velocity.vel_z);
+        
+        // If the base motion requires more than 80% of the max speed of some joint, reduce the velocities
+        move_base_scaling_ratio = std::min(0.80f/scaling_ratio, 1.0f);
+
+        // output the scaling ratio:
+        std::cout << "Scaling used for slowing base down: " << move_base_scaling_ratio << std::endl;
+
+        // Come up with a new pose candidate for the base, using the scaling ratio
+        new_pose_candidate = move_base.pose;
+        new_pose_candidate.x += move_base_scaling_ratio*move_base.velocity.vel_x * getUpdateInterval() / 1000.0f;
+        new_pose_candidate.y += move_base_scaling_ratio*move_base.velocity.vel_y * getUpdateInterval() / 1000.0f;
+        new_pose_candidate.z += move_base_scaling_ratio*move_base.velocity.vel_z * getUpdateInterval() / 1000.0f;
+        new_pose_candidate.rot_z += move_base_scaling_ratio*move_base.velocity.rot_z * getUpdateInterval() / 1000.0f;
+
+        // with this new pose, compute the goal pose in the base frame again
+        utils::Pose goal_pose_wrt_robot = convertGoalPoseInBaseFrame(goal_pose_world, new_pose_candidate);
+
+        // compute the joint angles again for the final base frame.
+        auto [b1, b2, b3] = computeJointAngles(goal_pose_wrt_robot.x, goal_pose_wrt_robot.y, goal_pose_wrt_robot.rot_z);
+
+        // Set the resulting joint angles as requested angles for position control
+        setRequestedAngles(b1, b2, b3);
+
+        std::cout << "Computed joint angles: " << b1 << ", " << b2 << ", " << b3 << std::endl;
+
+        // I think we could in theory just scale the computed FF velocities, but I compute them again anyway.
+        // Just to be sure, compute the FF velocity again
+        ff_1 = (b1 - g1) / (getUpdateInterval() / 1000.0f); // TODO: check for wrapping around
+        ff_2 = (b2 - g2) / (getUpdateInterval() / 1000.0f);
+        ff_3 = (b3 - g3) / (getUpdateInterval() / 1000.0f);
+
+        // for debugging, print the ff values
+        std::cout << "Feed forward velocities scaled: ff_1=" << ff_1
+                  << ", ff_2=" << ff_2
+                  << ", ff_3=" << ff_3
+                  << ", move_base_vel_z=" << move_base_scaling_ratio*-move_base.velocity.vel_z << std::endl;
+
+        // set FF velocity for each joint
+        setFeedForwardVelocity("arm1", ff_1, "arm2", ff_2, "arm3", ff_3, "base", -move_base_scaling_ratio*move_base.velocity.vel_z);
+
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+    }
+
+    // With the new pose_candidate found, update the base
+    move_base.pose = new_pose_candidate; // update the pose of the base
+    // Set the velocity of the base to the recuded velocity
+    move_base.velocity.vel_x = move_base_scaling_ratio * move_base.velocity.vel_x;
+    move_base.velocity.vel_y = move_base_scaling_ratio * move_base.velocity.vel_y;
+    move_base.velocity.vel_z = move_base_scaling_ratio * move_base.velocity.vel_z;
+    move_base.velocity.rot_z = move_base_scaling_ratio * move_base.velocity.rot_z;
+
     // update this pose in the respective links
     for (auto &link : links)
     {
@@ -75,59 +146,24 @@ void RoboticArm::moveBase() {
         {   
             // update the pose of the link for the frontend
             utils::Pose new_pose_link = link.getPose();
-            new_pose_link.x = new_pose.x;
-            new_pose_link.y = new_pose.y;
-            new_pose_link.z = new_pose.z;
+            new_pose_link.x = new_pose_candidate.x;
+            new_pose_link.y = new_pose_candidate.y;
+            new_pose_link.z = new_pose_candidate.z;
             link.setPose(new_pose_link);
         } else if (link.getLinkName() == "move_base_rotz")
         {
             // update the pose of the link for the frontend
             utils::Pose new_pose_link = link.getPose();
-            new_pose_link.rot_z = new_pose.rot_z; // only update rotation
+            new_pose_link.rot_z = new_pose_candidate.rot_z; // only update rotation
             link.setPose(new_pose_link);
         }
     }
 
-    // print goal pose of the base
-    std::cout << "Move base goal pose: x=" << move_base_goal.x
-                << ", y=" << move_base_goal.y
-                << ", z=" << move_base_goal.z
-                << ", rot_z=" << move_base_goal.rot_z << std::endl;
-    // print the new base pose
-    std::cout << "New base pose: x=" << move_base.pose.x
-                << ", y=" << move_base.pose.y
-                << ", z=" << move_base.pose.z
-                << ", rot_z=" << move_base.pose.rot_z << std::endl;
-    
-    // step 1: express the goal position in the base frame
-    utils::Pose goal_pose_wrt_robot = convertGoalPoseInBaseFrame(goal_pose_world);
-
-    // print
-    std::cout << "Goal pose in base frame: x=" << goal_pose_wrt_robot.x
-                << ", y=" << goal_pose_wrt_robot.y
-                << ", z=" << goal_pose_wrt_robot.z
-                << ", rot_z=" << goal_pose_wrt_robot.rot_z << std::endl;
-
-    // step 2: with this position, call the computeJointAngles function
+    // Set the goal position for position control
     setGoalPose(goal_pose_wrt_robot.x, goal_pose_wrt_robot.y, goal_pose_wrt_robot.z, goal_pose_wrt_robot.rot_z);
 
-    // compute and set new joint reference angles
-    computeJointAngles(goal_pose_wrt_robot.x, goal_pose_wrt_robot.y, goal_pose_wrt_robot.rot_z);
-
-    // compute motion in z directoin
+    // Set goal positions for link in z position.
     computeZMotion();
-
-    // step 3: move the base and check again next time step.
-    auto [g1_f, g2_f, g3_f] = getLinkGoalPositions("arm1", "arm2", "arm3");
-
-    // compute required velocity for each joint
-    float ff_1 = (g1_f - g1) / (getUpdateInterval() / 1000.0f); // TODO: check for wrapping around
-    float ff_2 = (g2_f - g2) / (getUpdateInterval() / 1000.0f);
-    float ff_3 = (g3_f - g3) / (getUpdateInterval() / 1000.0f);
-
-    // set FF velocity for each joint
-    setFeedForwardVelocity("arm1", ff_1, "arm2", ff_2, "arm3", ff_3, "base", -move_base.velocity.vel_z);
-
     
 }
 
@@ -252,12 +288,12 @@ void RoboticArm::setMoveModeSetJoints(bool mode) {
 
 // Conversions and computations
 
-utils::Pose RoboticArm::convertGoalPoseInBaseFrame(utils::Pose goal_pose) {
+utils::Pose RoboticArm::convertGoalPoseInBaseFrame(utils::Pose goal_pose, utils::Pose move_base) {
     // Get base pose in world frame
-    float x_r = move_base.pose.x;
-    float y_r = move_base.pose.y;
-    float z_r = move_base.pose.z;
-    float rot_z_r = move_base.pose.rot_z;
+    float x_r = move_base.x;
+    float y_r = move_base.y;
+    float z_r = move_base.z;
+    float rot_z_r = move_base.rot_z;
 
     // translat the goal pose
     float x_trans = goal_pose.x - x_r;
@@ -277,7 +313,7 @@ utils::Pose RoboticArm::convertGoalPoseInBaseFrame(utils::Pose goal_pose) {
     return goal_pose_wrt_robot;
 }
 
-void RoboticArm::computeJointAngles(float x, float y, float rot_z) {
+std::tuple<float, float, float>  RoboticArm::computeJointAngles(float x, float y, float rot_z) {
     // Get arm lengths
     auto [L1, L2, L3] = getLinkLengths("arm1", "arm2", "arm3");
     // Get current angles
@@ -293,7 +329,10 @@ void RoboticArm::computeJointAngles(float x, float y, float rot_z) {
     // Check reachability
     if (r > L1 + L2 || r < std::abs(L1 - L2)) {
         std::cerr << "Error: Target position (" << x << ", " << y << ") is unreachable" << std::endl;
-        return;
+        // create exception or return a default value
+        throw std::runtime_error("Target position is unreachable");
+
+        return {0,0,0};
     }
 
     // Compute rot2 using law of cosines
@@ -332,11 +371,29 @@ void RoboticArm::computeJointAngles(float x, float y, float rot_z) {
         }
     }
 
-    // return solutions[best_solution];
-    setRequestedAngles(solutions[best_solution].rot1, solutions[best_solution].rot2, solutions[best_solution].rot3);
-    std::cout << "Computed joint angles: " << solutions[best_solution].rot1 << ", "
-                << solutions[best_solution].rot2 << ", " << solutions[best_solution].rot3 << std::endl;
+    return {solutions[best_solution].rot1, solutions[best_solution].rot2, solutions[best_solution].rot3};
+    // // return solutions[best_solution];
+    // setRequestedAngles(solutions[best_solution].rot1, solutions[best_solution].rot2, solutions[best_solution].rot3);
+    // std::cout << "Computed joint angles: " << solutions[best_solution].rot1 << ", "
+    //             << solutions[best_solution].rot2 << ", " << solutions[best_solution].rot3 << std::endl;
     
+}
+
+float RoboticArm::ratioUsedByFeedForward(const std::string& arm1, float ff1, const std::string& arm2, float ff2, const std::string& arm3, float ff3, const std::string& base, float ffz){
+    float r1 = 1.0f, r2 = 1.0f, r3 = 1.0f, r4 = 1.0f;
+    for (auto& link : links) {
+        const std::string& name = link.getLinkName();
+        if (name == arm1) {
+            r1 = std::abs(ff1/link.getMaxVelocity());
+        } else if (name == arm2) {
+            r2 = std::abs(ff2/link.getMaxVelocity());
+        } else if (name == arm3) {
+            r3 = std::abs(ff3/link.getMaxVelocity());
+        } else if (name == base) {
+            r4 = std::abs(ffz/link.getMaxVelocity());
+        }
+    }
+    return std::max({r1, r2, r3, r4}); // return the maximum ratio
 }
 
 void RoboticArm::computeZMotion() {
@@ -356,8 +413,6 @@ void RoboticArm::computeZMotion() {
     for (auto& link : links) {
         if (link.getLinkName() == "base") {
             link.setRequestedPosition(link.getCurrentPosition() + z_error);
-            // print the requested position
-            std::cout << "Requested base position: " << link.getRequestedPosition() << std::endl;
             break;
         }
     }

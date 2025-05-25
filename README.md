@@ -115,3 +115,12 @@ In addition, add Velocity control:
 - Compute how fast each link should move in order to compensate for the base movement. This is done in via ```setFeedForwardVelocity``` in the ```moveBase``` method.
 
 Using feed forward during base motion, there is practically no trackig error. The only error we observe is during transient behavior when the base is accelerating faster than the individual links can keep up with.
+
+### Dealing with reaching the limits of the actuators while moving the base
+While the base is moving, we compute the required actuator speed for the robot trying to hold its goal position. If this velocity exceeds 80% of the max velocity of one of its joints, the base is slowed down (seen as ```Scaling used for slowing base down: x``` in the logs). The 80% is chosen to leave some room for the position controller.
+
+## Shortcomings
+
+- In my current implementation, the base moves by directly setting velocities. This can cause high acceleration which the robot cannot compensate for. This causes a position error at the beginning and end of motion of the base.
+- The actuators do take the range contraints into account. In my current implementation I do not check the range of the actuators when computing whether the computed inverse kinematics are feasible. But this could be added relatively easily.
+- It would be good to receive status message in the front end (when a position is not reachable, or when the robot is slowing down when it cannot keep up).

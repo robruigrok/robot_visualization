@@ -55,6 +55,7 @@ public:
     float getCurrentPosition() const { return currentPosition; }
     float getRequestedPosition() const { return requestedPosition; }
     float getCurrentVelocity() const { return currentVelocity; }
+    float getMaxVelocity() const { return maxSpeed; }
 
     // Setters
     void setRequestedPosition(float value);
