@@ -224,8 +224,8 @@ camera.position.set(3.5, 2, 2.5);
 camera.lookAt(0, 0, 1.5);
 camera.rotateZ(THREE.MathUtils.degToRad(97));
 // if I want to look at it from above
-camera.position.set(0, 0, 5);
-camera.lookAt(0, 0, 2);
+// camera.position.set(0, 0, 5);
+// camera.lookAt(0, 0, 2);
 
 // add ground plane grid
 const gridSize = 10; // in meters
