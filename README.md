@@ -16,7 +16,7 @@ git clone https://github.com/robruigrok/robot_visualization.git
 ```
 Initialize the websocketpp submodule used in the backend:
 ```bash
-git submodule update --init –recursive 
+git submodule update --init --recursive 
 ```
 
 Build the backend:
