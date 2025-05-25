@@ -12,8 +12,10 @@ RoboticArm::RoboticArm() {
     float acceleration_gain = 2.0f;
     float range_gain = 4.0f;
     links = {
-        RobotLink("move_base_x", 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                    RobotLink::LinkType::Move_Base, 0.0, 0.0f, 0.0f, 0.0f),     
+        RobotLink("move_base_xyz", 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                    RobotLink::LinkType::Move_Base, 0.0, 0.0f, 0.0f, 0.0f),
+        RobotLink("move_base_rotz", 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                    RobotLink::LinkType::Move_Base, 0.0, 0.0f, 0.0f, 0.0f),      
         // Base: 1.5m tall, 0.3m x 0.3m
         RobotLink("base", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f,
                     RobotLink::LinkType::Z, 1.0f, 2.0f, velocity_gain*0.2f, acceleration_gain*0.2f),
@@ -60,20 +62,42 @@ void RoboticArm::moveBase() {
     std::cout << "test" << std::endl;   
     computeMoveBaseVelocity();  // compute the velocity of the base
     // move the base one step.
+    utils::Pose new_pose = move_base.pose;
+    new_pose.x += move_base.velocity.vel_x * getUpdateInterval() / 1000.0f;
+    new_pose.y += move_base.velocity.vel_y * getUpdateInterval() / 1000.0f;
+    new_pose.z += move_base.velocity.vel_z * getUpdateInterval() / 1000.0f;
+    new_pose.rot_z += move_base.velocity.rot_z * getUpdateInterval() / 1000.0f;
+    move_base.pose = new_pose; // update the pose of the base
+    // update this pose in the respective links
     for (auto &link : links)
     {
-        if (link.getLinkName() == "move_base_x")
+        if (link.getLinkName() == "move_base_xyz")
         {   
-            utils::Pose new_pose = move_base.pose;
-            new_pose.x += move_base.velocity.vel_x * getUpdateInterval() / 1000.0f;
-            new_pose.y += move_base.velocity.vel_y * getUpdateInterval() / 1000.0f;
-            new_pose.z += move_base.velocity.vel_z * getUpdateInterval() / 1000.0f;
-            new_pose.rot_z += move_base.velocity.rot_z * getUpdateInterval() / 1000.0f;
-            // update
-            move_base.pose = new_pose;
-            link.setPose(new_pose); // for frontend
+            // update the pose of the link for the frontend
+            utils::Pose new_pose_link = link.getPose();
+            new_pose_link.x = new_pose.x;
+            new_pose_link.y = new_pose.y;
+            new_pose_link.z = new_pose.z;
+            link.setPose(new_pose_link);
+        } else if (link.getLinkName() == "move_base_rotz")
+        {
+            // update the pose of the link for the frontend
+            utils::Pose new_pose_link = link.getPose();
+            new_pose_link.rot_z = new_pose.rot_z; // only update rotation
+            link.setPose(new_pose_link);
         }
     }
+
+    // print goal pose of the base
+    std::cout << "Move base goal pose: x=" << move_base_goal.x
+                << ", y=" << move_base_goal.y
+                << ", z=" << move_base_goal.z
+                << ", rot_z=" << move_base_goal.rot_z << std::endl;
+    // print the new base pose
+    std::cout << "New base pose: x=" << move_base.pose.x
+                << ", y=" << move_base.pose.y
+                << ", z=" << move_base.pose.z
+                << ", rot_z=" << move_base.pose.rot_z << std::endl;
     
     // step 1: express the goal position in the base frame
     utils::Pose goal_pose_wrt_robot = convertGoalPoseInBaseFrame(goal_pose_world);
@@ -319,7 +343,7 @@ void RoboticArm::computeZMotion() {
     // loop over al links, get height of current tool
     float tool_height = 0.0f;
     for (auto& link : links) {
-        if (link.getLinkName() == "move_base_x") {
+        if (link.getLinkName() == "move_base_xyz") {
             // skip the offset
             continue;
         }
