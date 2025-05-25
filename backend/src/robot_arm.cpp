@@ -55,32 +55,27 @@ void RoboticArm::update() {
 }
 
 void RoboticArm::moveBase() {
-    // store current joint goal angles, required for computing feed forward
+    // Get current joint goal angles, required for computing feed forward
     auto [g1, g2, g3] = getLinkGoalPositions("arm1", "arm2", "arm3");
-
-    // move_base.pose = move_base_goal; // for testing
-    std::cout << "test" << std::endl;   
-    computeMoveBaseVelocity();  // compute the velocity of the base
-    // move the base one step.
+    
+    // compute the velocity of the base. This updates the velocity in the move_base object.
+    computeMoveBaseVelocity();
+    
+    // move the base one step using the originally planned velocity
     utils::Pose new_pose_candidate = move_base.pose;
     new_pose_candidate.x += move_base.velocity.vel_x * getUpdateInterval() / 1000.0f;
     new_pose_candidate.y += move_base.velocity.vel_y * getUpdateInterval() / 1000.0f;
     new_pose_candidate.z += move_base.velocity.vel_z * getUpdateInterval() / 1000.0f;
     new_pose_candidate.rot_z += move_base.velocity.rot_z * getUpdateInterval() / 1000.0f;
    
-    // step 1: express the goal position in the base frame
+    // express the goal position in the candidate base pose
     utils::Pose goal_pose_wrt_robot = convertGoalPoseInBaseFrame(goal_pose_world, new_pose_candidate);
 
-    // print
-    std::cout << "Goal pose in base frame: x=" << goal_pose_wrt_robot.x
-                << ", y=" << goal_pose_wrt_robot.y
-                << ", z=" << goal_pose_wrt_robot.z
-                << ", rot_z=" << goal_pose_wrt_robot.rot_z << std::endl;
-
-    // compute and set new joint reference angles
+    // Check whether the joint can keep up with proposed base velocity.
     float move_base_scaling_ratio = 1.0f;
     try
     {
+        // get the required joint angles for the goal pose in candidate frame.
         auto [a1, a2, a3] = computeJointAngles(goal_pose_wrt_robot.x, goal_pose_wrt_robot.y, goal_pose_wrt_robot.rot_z);
         
         // compute required velocity for each joint
@@ -91,12 +86,13 @@ void RoboticArm::moveBase() {
         // get achievable velocity for each link
         float scaling_ratio = ratioUsedByFeedForward("arm1", ff_1, "arm2", ff_2, "arm3", ff_3, "base", -move_base.velocity.vel_z);
         
-        // if scaling ration is larger than 0.80, reduce the velocities
-        move_base_scaling_ratio = std::min(0.40f/scaling_ratio, 1.0f);
+        // If the base motion requires more than 80% of the max speed of some joint, reduce the velocities
+        move_base_scaling_ratio = std::min(0.80f/scaling_ratio, 1.0f);
 
         // output the scaling ratio:
         std::cout << "Scaling used for slowing base down: " << move_base_scaling_ratio << std::endl;
 
+        // Come up with a new pose candidate for the base, using the scaling ratio
         new_pose_candidate = move_base.pose;
         new_pose_candidate.x += move_base_scaling_ratio*move_base.velocity.vel_x * getUpdateInterval() / 1000.0f;
         new_pose_candidate.y += move_base_scaling_ratio*move_base.velocity.vel_y * getUpdateInterval() / 1000.0f;
@@ -106,18 +102,22 @@ void RoboticArm::moveBase() {
         // with this new pose, compute the goal pose in the base frame again
         utils::Pose goal_pose_wrt_robot = convertGoalPoseInBaseFrame(goal_pose_world, new_pose_candidate);
 
+        // compute the joint angles again for the final base frame.
         auto [b1, b2, b3] = computeJointAngles(goal_pose_wrt_robot.x, goal_pose_wrt_robot.y, goal_pose_wrt_robot.rot_z);
 
+        // Set the resulting joint angles as requested angles for position control
         setRequestedAngles(b1, b2, b3);
+
         std::cout << "Computed joint angles: " << b1 << ", " << b2 << ", " << b3 << std::endl;
 
+        // I think we could in theory just scale the computed FF velocities, but I compute them again anyway.
         // Just to be sure, compute the FF velocity again
         ff_1 = (b1 - g1) / (getUpdateInterval() / 1000.0f); // TODO: check for wrapping around
         ff_2 = (b2 - g2) / (getUpdateInterval() / 1000.0f);
         ff_3 = (b3 - g3) / (getUpdateInterval() / 1000.0f);
 
         // for debugging, print the ff values
-        std::cout << "Feed forward velocities: ff_1=" << ff_1
+        std::cout << "Feed forward velocities scaled: ff_1=" << ff_1
                   << ", ff_2=" << ff_2
                   << ", ff_3=" << ff_3
                   << ", move_base_vel_z=" << move_base_scaling_ratio*-move_base.velocity.vel_z << std::endl;
@@ -159,28 +159,11 @@ void RoboticArm::moveBase() {
         }
     }
 
-    // step 2: with this position, call the computeJointAngles function. TODO: check whether this is still necessary
+    // Set the goal position for position control
     setGoalPose(goal_pose_wrt_robot.x, goal_pose_wrt_robot.y, goal_pose_wrt_robot.z, goal_pose_wrt_robot.rot_z);
 
-    // compute motion in z directoin
+    // Set goal positions for link in z position.
     computeZMotion();
-
-    // step 3: move the base and check again next time step.
-    // auto [g1_f, g2_f, g3_f] = getLinkGoalPositions("arm1", "arm2", "arm3");
-
-    // // compute required velocity for each joint
-    // float ff_1 = (g1_f - g1) / (getUpdateInterval() / 1000.0f); // TODO: check for wrapping around
-    // float ff_2 = (g2_f - g2) / (getUpdateInterval() / 1000.0f);
-    // float ff_3 = (g3_f - g3) / (getUpdateInterval() / 1000.0f);
-
-    // // get achievable velocity for each link
-    // float scaling_ratio = ratioUsedByFeedForward("arm1", ff_1, "arm2", ff_2, "arm3", ff_3, "base", -move_base.velocity.vel_z);
-    // // output the scaling ratio:
-    // std::cout << "Velocity used by FFW: " << scaling_ratio << std::endl;
-
-    // // set FF velocity for each joint
-    // setFeedForwardVelocity("arm1", ff_1, "arm2", ff_2, "arm3", ff_3, "base", -move_base.velocity.vel_z);
-
     
 }
 
@@ -430,8 +413,6 @@ void RoboticArm::computeZMotion() {
     for (auto& link : links) {
         if (link.getLinkName() == "base") {
             link.setRequestedPosition(link.getCurrentPosition() + z_error);
-            // print the requested position
-            std::cout << "Requested base position: " << link.getRequestedPosition() << std::endl;
             break;
         }
     }
