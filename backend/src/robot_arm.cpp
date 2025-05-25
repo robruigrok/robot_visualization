@@ -12,8 +12,10 @@ RoboticArm::RoboticArm() {
     float acceleration_gain = 2.0f;
     float range_gain = 4.0f;
     links = {
-        RobotLink("move_base_x", 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                    RobotLink::LinkType::Move_Base, 0.0, 0.0f, 0.0f, 0.0f),     
+        RobotLink("move_base_xyz", 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                    RobotLink::LinkType::Move_Base, 0.0, 0.0f, 0.0f, 0.0f),
+        RobotLink("move_base_rotz", 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                    RobotLink::LinkType::Move_Base, 0.0, 0.0f, 0.0f, 0.0f),      
         // Base: 1.5m tall, 0.3m x 0.3m
         RobotLink("base", 0.0f, 0.0f, 1.5f, 0.0f, 0.0f, 0.0f,
                     RobotLink::LinkType::Z, 1.0f, 2.0f, velocity_gain*0.2f, acceleration_gain*0.2f),
@@ -60,20 +62,42 @@ void RoboticArm::moveBase() {
     std::cout << "test" << std::endl;   
     computeMoveBaseVelocity();  // compute the velocity of the base
     // move the base one step.
+    utils::Pose new_pose = move_base.pose;
+    new_pose.x += move_base.velocity.vel_x * getUpdateInterval() / 1000.0f;
+    new_pose.y += move_base.velocity.vel_y * getUpdateInterval() / 1000.0f;
+    new_pose.z += move_base.velocity.vel_z * getUpdateInterval() / 1000.0f;
+    new_pose.rot_z += move_base.velocity.rot_z * getUpdateInterval() / 1000.0f;
+    move_base.pose = new_pose; // update the pose of the base
+    // update this pose in the respective links
     for (auto &link : links)
     {
-        if (link.getLinkName() == "move_base_x")
+        if (link.getLinkName() == "move_base_xyz")
         {   
-            utils::Pose new_pose = move_base.pose;
-            new_pose.x += move_base.velocity.vel_x * getUpdateInterval() / 1000.0f;
-            new_pose.y += move_base.velocity.vel_y * getUpdateInterval() / 1000.0f;
-            new_pose.z += move_base.velocity.vel_z * getUpdateInterval() / 1000.0f;
-            new_pose.rot_z += move_base.velocity.rot_z * getUpdateInterval() / 1000.0f;
-            // update
-            move_base.pose = new_pose;
-            link.setPose(new_pose); // for frontend
+            // update the pose of the link for the frontend
+            utils::Pose new_pose_link = link.getPose();
+            new_pose_link.x = new_pose.x;
+            new_pose_link.y = new_pose.y;
+            new_pose_link.z = new_pose.z;
+            link.setPose(new_pose_link);
+        } else if (link.getLinkName() == "move_base_rotz")
+        {
+            // update the pose of the link for the frontend
+            utils::Pose new_pose_link = link.getPose();
+            new_pose_link.rot_z = new_pose.rot_z; // only update rotation
+            link.setPose(new_pose_link);
         }
     }
+
+    // print goal pose of the base
+    std::cout << "Move base goal pose: x=" << move_base_goal.x
+                << ", y=" << move_base_goal.y
+                << ", z=" << move_base_goal.z
+                << ", rot_z=" << move_base_goal.rot_z << std::endl;
+    // print the new base pose
+    std::cout << "New base pose: x=" << move_base.pose.x
+                << ", y=" << move_base.pose.y
+                << ", z=" << move_base.pose.z
+                << ", rot_z=" << move_base.pose.rot_z << std::endl;
     
     // step 1: express the goal position in the base frame
     utils::Pose goal_pose_wrt_robot = convertGoalPoseInBaseFrame(goal_pose_world);
@@ -319,7 +343,7 @@ void RoboticArm::computeZMotion() {
     // loop over al links, get height of current tool
     float tool_height = 0.0f;
     for (auto& link : links) {
-        if (link.getLinkName() == "move_base_x") {
+        if (link.getLinkName() == "move_base_xyz") {
             // skip the offset
             continue;
         }
@@ -348,7 +372,7 @@ void RoboticArm::computeMoveBaseVelocity()
 
     // Step 2: Compute shortest angular difference (handles wrapping)
     float angular_error = move_base_goal.rot_z - move_base.pose.rot_z;
-    angular_error = fmod(angular_error + M_PI, 2 * M_PI) - M_PI; // Normalize to [-pi, pi] TODO FIND SHORTEST DISTANCE
+    angular_error = fmod(angular_error + M_PI, 2 * M_PI) - M_PI; 
 
     // Step 3: Compute linear distance (Euclidean distance in 3D)
     float linear_distance = sqrt(dx * dx + dy * dy + dz * dz);
@@ -367,7 +391,7 @@ void RoboticArm::computeMoveBaseVelocity()
     float time_to_complete = linear_distance / move_base_velocity;
 
     // Step 6: Compute linear velocities
-    if (time_to_complete < update_interval_ms/1000.0f) {
+if (time_to_complete < update_interval_ms/1000.0f) {
         move_base.velocity.vel_x = dx / (update_interval_ms/1000.0f);
         move_base.velocity.vel_y = dy / (update_interval_ms/1000.0f);
         move_base.velocity.vel_z = dz / (update_interval_ms/1000.0f);
@@ -375,17 +399,27 @@ void RoboticArm::computeMoveBaseVelocity()
         move_base.velocity.vel_x = dx / time_to_complete;
         move_base.velocity.vel_y = dy / time_to_complete;
         move_base.velocity.vel_z = dz / time_to_complete;
+    } else {
+        move_base.velocity.vel_x = 0.0f;
+        move_base.velocity.vel_y = 0.0f;
+        move_base.velocity.vel_z = 0.0f;
     }
 
-    // Step 7: Compute angular velocity to finish rotation at the same time
-    if (time_to_complete > 1e-6) {
-        move_base.velocity.rot_z = angular_error / time_to_complete;
-    } else {
-        // If linear distance is zero, use max angular speed to rotate in place
-        move_base.velocity.rot_z = angular_error > 0 ? move_base_rotation : -move_base_rotation;
-        if (fabs(angular_error) < 1e-6) {
-            move_base.velocity.rot_z = 0.0f;
+// Step 7: Compute angular velocity
+    float angular_time_to_complete = fabs(angular_error) / move_base_rotation; // Time to complete rotation at max speed
+    if (angular_time_to_complete < update_interval_ms/1000.0f) {
+        // If angular motion would complete within one update cycle, scale velocity
+        move_base.velocity.rot_z = angular_error / (update_interval_ms/1000.0f);
+    } else if (fabs(angular_error) > 1e-6) {
+        // Synchronize with linear motion if possible, else use max rotation speed
+        if (time_to_complete > 1e-6) {
+            move_base.velocity.rot_z = angular_error / time_to_complete;
+        } else {
+            // If no linear motion, rotate at max speed
+            move_base.velocity.rot_z = angular_error > 0 ? move_base_rotation : -move_base_rotation;
         }
+    } else {
+        move_base.velocity.rot_z = 0.0f;
     }
 
     // Step 8: Limit angular velocity if it exceeds move_base_rotation

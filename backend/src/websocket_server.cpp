@@ -85,8 +85,6 @@ void WebSocketServer::handleGoalSetpoints(const json& data) {
                       << ", z=" << z << ", rotz=" << rotz << " rad" << std::endl;
             // Set the goal pose in the robotic arm
             arm_.setGoalPoseWorld(x, y, z, rotz);
-            // TODO: I think this is not required. This function is called in the arm.update() function
-            arm_.moveBase();
         } else {
             std::cerr << "Invalid goal_setpoints: Missing x, y, z, or rotz" << std::endl;
         }
@@ -111,8 +109,6 @@ void WebSocketServer::handleMoveBaseSetpoints(const json& data) {
                       << ", z=" << z << ", rotz=" << rotz << " rad" << std::endl;
             // Set the move_base goal pose in the robotic arm
             arm_.setMoveBaseGoalPose(x, y, z, rotz);
-            // TODO: I think this is not required. This function is called in the arm.update() function
-            arm_.moveBase();
         } else {
             std::cerr << "Invalid move_base_setpoints: Missing x, y, z, or rotz" << std::endl;
         }

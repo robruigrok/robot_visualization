@@ -56,7 +56,7 @@ private:
     utils::MoveBase move_base = {};     // position and rotation of the base
     utils::Pose move_base_goal = {};    // goal position and rotation of the base. Ignore velocity.
     float move_base_velocity = 0.2f;    // m/s
-    float move_base_rotation = 0.5f;    // rad/s
+    float move_base_rotation = 0.2f;    // rad/s
     bool move_mode_set_joints = true;   // true if move mode is set to joints, false if set to base  
 };
 

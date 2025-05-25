@@ -43,6 +43,7 @@ public:
               LinkType type, float minVal, float maxVal, float maxSpeed, float maxAcc);
 
     // Getters
+    utils::Pose getPose();
     float getTranslationX() const { return translationX; }
     float getTranslationY() const { return translationY; }
     float getTranslationZ() const { return translationZ; }

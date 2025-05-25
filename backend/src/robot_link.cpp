@@ -58,6 +58,17 @@ void RobotLink::setPose(utils::Pose pose) {
     rotationZ = pose.rot_z;
 }
 
+utils::Pose RobotLink::getPose() {
+    utils::Pose pose;
+    pose.x = translationX;
+    pose.y = translationY;
+    pose.z = translationZ;
+    pose.rot_x = rotationX;
+    pose.rot_y = rotationY;
+    pose.rot_z = rotationZ;
+    return pose;
+}
+
 // Compute acceleration for velocity tracking
 float RobotLink::computeVelocityControl(float vel_ref, float dt) {
     if (type == LinkType::STATIC) return 0.0f;
