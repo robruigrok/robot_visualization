@@ -372,7 +372,7 @@ void RoboticArm::computeMoveBaseVelocity()
 
     // Step 2: Compute shortest angular difference (handles wrapping)
     float angular_error = move_base_goal.rot_z - move_base.pose.rot_z;
-    angular_error = fmod(angular_error + M_PI, 2 * M_PI) - M_PI; // Normalize to [-pi, pi] TODO FIND SHORTEST DISTANCE
+    angular_error = fmod(angular_error + M_PI, 2 * M_PI) - M_PI; 
 
     // Step 3: Compute linear distance (Euclidean distance in 3D)
     float linear_distance = sqrt(dx * dx + dy * dy + dz * dz);
@@ -391,7 +391,7 @@ void RoboticArm::computeMoveBaseVelocity()
     float time_to_complete = linear_distance / move_base_velocity;
 
     // Step 6: Compute linear velocities
-    if (time_to_complete < update_interval_ms/1000.0f) {
+if (time_to_complete < update_interval_ms/1000.0f) {
         move_base.velocity.vel_x = dx / (update_interval_ms/1000.0f);
         move_base.velocity.vel_y = dy / (update_interval_ms/1000.0f);
         move_base.velocity.vel_z = dz / (update_interval_ms/1000.0f);
@@ -399,17 +399,27 @@ void RoboticArm::computeMoveBaseVelocity()
         move_base.velocity.vel_x = dx / time_to_complete;
         move_base.velocity.vel_y = dy / time_to_complete;
         move_base.velocity.vel_z = dz / time_to_complete;
+    } else {
+        move_base.velocity.vel_x = 0.0f;
+        move_base.velocity.vel_y = 0.0f;
+        move_base.velocity.vel_z = 0.0f;
     }
 
-    // Step 7: Compute angular velocity to finish rotation at the same time
-    if (time_to_complete > 1e-6) {
-        move_base.velocity.rot_z = angular_error / time_to_complete;
-    } else {
-        // If linear distance is zero, use max angular speed to rotate in place
-        move_base.velocity.rot_z = angular_error > 0 ? move_base_rotation : -move_base_rotation;
-        if (fabs(angular_error) < 1e-6) {
-            move_base.velocity.rot_z = 0.0f;
+// Step 7: Compute angular velocity
+    float angular_time_to_complete = fabs(angular_error) / move_base_rotation; // Time to complete rotation at max speed
+    if (angular_time_to_complete < update_interval_ms/1000.0f) {
+        // If angular motion would complete within one update cycle, scale velocity
+        move_base.velocity.rot_z = angular_error / (update_interval_ms/1000.0f);
+    } else if (fabs(angular_error) > 1e-6) {
+        // Synchronize with linear motion if possible, else use max rotation speed
+        if (time_to_complete > 1e-6) {
+            move_base.velocity.rot_z = angular_error / time_to_complete;
+        } else {
+            // If no linear motion, rotate at max speed
+            move_base.velocity.rot_z = angular_error > 0 ? move_base_rotation : -move_base_rotation;
         }
+    } else {
+        move_base.velocity.rot_z = 0.0f;
     }
 
     // Step 8: Limit angular velocity if it exceeds move_base_rotation
