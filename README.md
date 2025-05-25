@@ -39,7 +39,9 @@ Run the development server:
 ```bash
 npm run dev
 ```
-Open `http://localhost:5173` in a browser, it should show you the GUI.
+Open `http://localhost:5173` in a browser, it should show you the GUI:
+
+![Alt text](GUI_example.png)
 
 
 ## Design
