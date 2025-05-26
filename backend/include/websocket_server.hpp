@@ -12,6 +12,7 @@ using websocketpp::connection_hdl;
 using websocketpp::server;
 using websocketpp::config::asio;
 using json = nlohmann::json;
+using ServerType = websocketpp::server<websocketpp::config::asio>;
 
 class WebSocketServer
 {
@@ -25,7 +26,7 @@ private:
     void handleGoalSetpoints(const json& data);
     void handleMoveBaseSetpoints(const json& data);
     
-    server<asio> server_;
+    ServerType server_;
     std::set<connection_hdl, std::owner_less<connection_hdl>> connections_;
     RoboticArm &arm_;
 };

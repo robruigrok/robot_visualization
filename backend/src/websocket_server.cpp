@@ -16,7 +16,7 @@ WebSocketServer::WebSocketServer(RoboticArm &arm) : arm_(arm)
         connections_.erase(hdl); 
         std::cout << "Client disconnected" << std::endl; });
 
-    server_.set_message_handler([this](connection_hdl hdl, server<asio>::message_ptr msg)
+    server_.set_message_handler([this](connection_hdl hdl, ServerType::message_ptr msg)
                                 {
         try {
             json data = json::parse(msg->get_payload());
