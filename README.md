@@ -5,7 +5,7 @@ This repository contains my implementation of the take home assignment for the s
 ## Requirements
 - Node.js and npm. I used node.js v20.19.1 and npm v10.8.2.
 - Vite, TypeScript, and `twgl.js` (installed via `npm install`).
-- C++ packages: Boost, nlohmann_json.
+- C++ packages: nlohmann_json (3.10.5-2).
 - Only tested in Ubuntu 22.04.
 
 
