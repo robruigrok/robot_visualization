@@ -1,16 +1,12 @@
 #ifndef WEBSOCKET_SERVER_HPP
 #define WEBSOCKET_SERVER_HPP
 
-#define ASIO_STANDALONE
-
 #include <websocketpp/config/asio_no_tls.hpp>
 #include <websocketpp/server.hpp>
 #include <nlohmann/json.hpp>
 #include <set>
 
 #include "robot_arm.hpp"
-
-static_assert(std::is_class_v<websocketpp::config::asio>, "websocketpp::config::asio is not a valid configuration");
 
 using websocketpp::connection_hdl;
 using websocketpp::server;
